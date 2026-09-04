@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: 246 248 251;
+  --color-surface: 255 255 255;
+  --color-surface2: 238 242 247;
+  --color-border: 225 231 239;
+  --color-text: 15 26 43;
+  --color-text-muted: 91 107 130;
+  --color-sidebar: 11 32 56;
+  --color-accent: 31 111 235;
+  --color-accent-soft: 231 240 255;
+  --color-success: 21 128 61;
+  --color-danger: 220 38 38;
+  --color-warning: 180 83 9;
+}
+
+.dark {
+  --color-bg: 11 18 32;
+  --color-surface: 17 26 43;
+  --color-surface2: 26 39 64;
+  --color-border: 35 49 80;
+  --color-text: 230 237 247;
+  --color-text-muted: 147 161 184;
+  --color-sidebar: 7 12 23;
+  --color-accent: 79 139 255;
+  --color-accent-soft: 22 35 61;
+  --color-success: 74 222 128;
+  --color-danger: 248 113 113;
+  --color-warning: 251 191 36;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-text));
+}
+
+a {
+  color: rgb(var(--color-accent));
+}
