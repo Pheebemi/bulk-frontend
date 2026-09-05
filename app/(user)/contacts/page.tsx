@@ -2,9 +2,11 @@
 
 import { useRef, useState } from 'react';
 import { useUserStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 
 export default function ContactsPage() {
   const { groups, uploadCsv } = useUserStore();
+  const toast = useToast();
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [newGroupName, setNewGroupName] = useState('');
   const [flash, setFlash] = useState('');
@@ -25,8 +27,10 @@ export default function ContactsPage() {
       setFlash(`${file.name} imported into a new group.`);
       setNewGroupName('');
       setTimeout(() => setFlash(''), 4000);
+      toast.success(`${file.name} imported.`);
     } else {
       setError(result.error);
+      toast.error(result.error);
     }
     e.target.value = '';
   };

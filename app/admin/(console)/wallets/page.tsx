@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { useAdminStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 import { formatNaira } from '@/lib/money';
 
 export default function AdminWalletsPage() {
   const { users, adjustUserBalance } = useAdminStore();
+  const toast = useToast();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number>(users[0]?.id ?? 0);
   const [amount, setAmount] = useState('');
@@ -26,8 +28,10 @@ export default function AdminWalletsPage() {
     if (result.ok) {
       setAmount('');
       setReason('');
+      toast.success(`${direction === 'credit' ? 'Credited' : 'Debited'} ${formatNaira(value)} ${direction === 'credit' ? 'to' : 'from'} ${selected.name}.`);
     } else {
       setError(result.error);
+      toast.error(result.error);
     }
   };
 

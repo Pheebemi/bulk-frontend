@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 import { formatNaira } from '@/lib/money';
 
 export default function CampaignReportPage() {
   const params = useParams<{ id: string }>();
   const campaignId = Number(params.id);
   const { campaigns, fetchCampaign, retryCampaign } = useUserStore();
+  const toast = useToast();
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
   const campaign = campaigns.find((c) => c.id === campaignId);
@@ -49,7 +51,12 @@ export default function CampaignReportPage() {
     setRetryError('');
     const result = await retryCampaign(campaign.id);
     setRetrying(false);
-    if (!result.ok) setRetryError(result.error);
+    if (!result.ok) {
+      setRetryError(result.error);
+      toast.error(result.error);
+    } else {
+      toast.success('Campaign resend requested.');
+    }
   };
 
   return (

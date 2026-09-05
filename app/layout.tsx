@@ -3,6 +3,7 @@ import { Manrope, Work_Sans } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/lib/theme';
 import { UserStoreProvider, AdminStoreProvider } from '@/lib/store';
+import { ToastProvider } from '@/lib/toast';
 
 const manrope = Manrope({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--font-manrope' });
 const workSans = Work_Sans({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-work-sans' });
@@ -17,9 +18,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${manrope.variable} ${workSans.variable}`} suppressHydrationWarning>
       <body className="font-body min-h-screen">
         <ThemeProvider>
-          <UserStoreProvider>
-            <AdminStoreProvider>{children}</AdminStoreProvider>
-          </UserStoreProvider>
+          <ToastProvider>
+            <UserStoreProvider>
+              <AdminStoreProvider>{children}</AdminStoreProvider>
+            </UserStoreProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

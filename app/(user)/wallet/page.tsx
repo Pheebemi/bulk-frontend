@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
 import { useUserStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 import { formatNaira } from '@/lib/money';
 
 const PRESETS = [5000, 10000, 20000, 50000];
 
 export default function WalletPage() {
   const { wallet, verifyPayment } = useUserStore();
+  const toast = useToast();
   const [amount, setAmount] = useState(10000);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -43,6 +45,7 @@ export default function WalletPage() {
         closePaymentModal();
         if (response.status !== 'successful' && response.status !== 'completed') {
           setError('Payment was not completed.');
+          toast.error('Payment was not completed.');
           return;
         }
         setVerifying(true);
@@ -52,8 +55,10 @@ export default function WalletPage() {
         setVerifying(false);
         if (result.ok) {
           setSuccess(true);
+          toast.success(`${formatNaira(amount)} added to your wallet.`);
         } else {
           setError(result.error);
+          toast.error(result.error);
         }
       },
       onClose: () => {},

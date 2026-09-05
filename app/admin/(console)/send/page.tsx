@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAdminStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 import { formatNaira, countSegments } from '@/lib/money';
 import type { CampaignChannel } from '@/types';
 
 export default function AdminSendPage() {
   const { rate, setRate, senderIds, users, adminCampaigns, sendCampaign, refreshUsers } = useAdminStore();
+  const toast = useToast();
   const activeSenderIds = senderIds.filter((s) => s.status === 'active');
   const [senderId, setSenderId] = useState('');
   const [channel, setChannel] = useState<CampaignChannel>('generic');
@@ -51,13 +53,20 @@ export default function AdminSendPage() {
       setSuccess(true);
       setMessage('');
       setManual('');
+      toast.success(`Campaign sent to ${recipients.toLocaleString()} recipient(s).`);
     } else {
       setError(result.error);
+      toast.error(result.error);
     }
   };
 
   const saveRate = async () => {
-    await setRate({ genericRate: parseFloat(genericRate) || rate.genericRate, dndRate: parseFloat(dndRate) || rate.dndRate });
+    try {
+      await setRate({ genericRate: parseFloat(genericRate) || rate.genericRate, dndRate: parseFloat(dndRate) || rate.dndRate });
+      toast.success('Platform rate updated.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not update the rate.');
+    }
   };
 
   return (

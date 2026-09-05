@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogoMark } from '@/components/icons';
 import { useUserStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 
 export default function LoginPage() {
   const [signup, setSignup] = useState(false);
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { login, signup: doSignup } = useUserStore();
+  const toast = useToast();
   const router = useRouter();
 
   const submit = async (e: React.FormEvent) => {
@@ -23,6 +25,7 @@ export default function LoginPage() {
     const result = signup ? await doSignup(email, password, fullName, phone) : await login(email, password);
     setSubmitting(false);
     if (result.ok) {
+      if (signup) toast.success(`Welcome to Reachly, ${fullName || 'there'}.`);
       router.push('/dashboard');
     } else {
       setError(result.error);

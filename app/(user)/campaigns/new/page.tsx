@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 import { formatNaira, countSegments } from '@/lib/money';
 import type { CampaignChannel } from '@/types';
 
 export default function NewCampaignPage() {
   const { senderIds, groups, wallet, rate, createCampaign } = useUserStore();
+  const toast = useToast();
   const router = useRouter();
 
   // Only ever offer names that can actually send right now: the caller's
@@ -59,8 +61,10 @@ export default function NewCampaignPage() {
     setSending(false);
     if (!result.ok) {
       setError(result.error);
+      toast.error(result.error);
       return;
     }
+    toast.success('Campaign sent.');
     router.push(`/campaigns/${result.campaign.id}`);
   };
 

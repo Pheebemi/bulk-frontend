@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useUserStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 import type { SenderIdStatus } from '@/types';
 
 const STATUS_STYLE: Record<SenderIdStatus, string> = {
@@ -12,6 +13,7 @@ const STATUS_STYLE: Record<SenderIdStatus, string> = {
 
 export default function SenderIdsPage() {
   const { senderIds, requestSenderId } = useUserStore();
+  const toast = useToast();
   const [name, setName] = useState('');
   const [useCase, setUseCase] = useState('');
   const [error, setError] = useState('');
@@ -32,8 +34,10 @@ export default function SenderIdsPage() {
     if (result.ok) {
       setName('');
       setUseCase('');
+      toast.success(`${name.toUpperCase()} submitted — Termii typically reviews it within 1-2 business days.`);
     } else {
       setError(result.error);
+      toast.error(result.error);
     }
   };
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAdminStore } from '@/lib/store';
+import { useToast } from '@/lib/toast';
 import type { SenderIdStatus } from '@/types';
 
 const STATUS_STYLE: Record<SenderIdStatus, string> = {
@@ -12,12 +13,19 @@ const STATUS_STYLE: Record<SenderIdStatus, string> = {
 
 export default function ApprovalsPage() {
   const { senderIds, setDndWhitelisted } = useAdminStore();
+  const toast = useToast();
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const toggle = async (id: number, current: boolean) => {
     setBusyId(id);
-    await setDndWhitelisted(id, !current);
-    setBusyId(null);
+    try {
+      await setDndWhitelisted(id, !current);
+      toast.success(current ? 'DND whitelisting removed.' : 'Marked as DND whitelisted.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not update DND whitelisting.');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
