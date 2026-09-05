@@ -76,6 +76,10 @@ export interface ApiContactGroup {
 export interface ApiSenderID {
   id: number;
   name: string;
+  // Admin-only — what the request's for, so Admin knows what to submit
+  // on whichever provider's dashboard. Absent from the customer-facing
+  // GET /api/sender-ids/ response.
+  use_case?: string;
   provider: 'termii' | 'sendchamp' | 'kudisms';
   platform_status: 'active' | 'pending' | 'blocked';
   termii_dnd_whitelisted: boolean;

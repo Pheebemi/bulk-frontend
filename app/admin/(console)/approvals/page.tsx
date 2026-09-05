@@ -55,10 +55,9 @@ export default function ApprovalsPage() {
     <div>
       <h1 className="mb-2 text-2xl font-extrabold text-ink">Sender IDs</h1>
       <p className="mb-6 max-w-2xl text-sm text-muted">
-        A request is submitted to Termii automatically, and its status here syncs from Termii's own review team
-        (<code>active</code> / <code>pending</code> / <code>blocked</code>). To skip Termii's wait, submit the name on
-        Sendchamp's or KudiSMS's own dashboard directly, then use the button below to mark it approved there instead
-        — from that point it's usable only by the customer who requested it.
+        Nothing is submitted to any provider automatically — every request below needs you to submit the name on
+        Termii's, Sendchamp's, or KudiSMS's own dashboard by hand, using the stated use case, then approve it here
+        once that provider confirms it. From that point it's usable only by the customer who requested it.
       </p>
       <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="grid grid-cols-6 border-b border-border px-4 py-3 text-xs font-bold text-muted">
@@ -72,7 +71,10 @@ export default function ApprovalsPage() {
         {requests.length === 0 && <div className="px-4 py-5 text-sm text-muted">No sender ID requests yet.</div>}
         {requests.map((s) => (
           <div key={s.id} className="grid grid-cols-6 items-center border-b border-border px-4 py-3.5 text-sm last:border-b-0">
-            <span className="font-semibold">{s.name}</span>
+            <div className="flex flex-col">
+              <span className="font-semibold">{s.name}</span>
+              {s.useCase && <span className="truncate text-xs text-muted" title={s.useCase}>{s.useCase}</span>}
+            </div>
             <span className="text-muted">{s.userEmail ?? '—'}</span>
             <span className="capitalize text-muted">{s.provider}</span>
             <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold capitalize ${STATUS_STYLE[s.status]}`}>{s.status}</span>

@@ -39,6 +39,7 @@ function mapSenderId(s: ApiSenderID): SenderId {
   return {
     id: s.id,
     name: s.name,
+    useCase: s.use_case,
     provider: s.provider,
     status: s.platform_status,
     dndWhitelisted: s.termii_dnd_whitelisted,

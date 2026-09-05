@@ -5,6 +5,8 @@ export type SmsProvider = 'termii' | 'sendchamp' | 'kudisms';
 export interface SenderId {
   id: number;
   name: string;
+  /** Admin-only — absent for the customer's own view of their requests. */
+  useCase?: string;
   provider: SmsProvider;
   status: SenderIdStatus;
   dndWhitelisted: boolean;
