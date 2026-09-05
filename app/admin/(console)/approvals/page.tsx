@@ -16,6 +16,13 @@ export default function ApprovalsPage() {
   const toast = useToast();
   const [busyId, setBusyId] = useState<number | null>(null);
 
+  // The shared, no-approval-needed sender IDs (Sendchamp, SAlert, SC-OTP)
+  // come back in this same list so the "Send platform campaign" screen
+  // can offer them too, but they aren't real rows — there's no request
+  // to review and no id to PATCH a whitelist flag onto, so they don't
+  // belong in a table of pending/approved requests.
+  const requests = senderIds.filter((s) => !s.isShared);
+
   const toggle = async (id: number, current: boolean) => {
     setBusyId(id);
     try {
@@ -44,8 +51,8 @@ export default function ApprovalsPage() {
           <span>REQUESTED</span>
           <span>DND WHITELISTED</span>
         </div>
-        {senderIds.length === 0 && <div className="px-4 py-5 text-sm text-muted">No sender ID requests yet.</div>}
-        {senderIds.map((s) => (
+        {requests.length === 0 && <div className="px-4 py-5 text-sm text-muted">No sender ID requests yet.</div>}
+        {requests.map((s) => (
           <div key={s.id} className="grid grid-cols-5 items-center border-b border-border px-4 py-3.5 text-sm last:border-b-0">
             <span className="font-semibold">{s.name}</span>
             <span className="text-muted">{s.userEmail ?? '—'}</span>
