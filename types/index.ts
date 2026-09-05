@@ -26,7 +26,7 @@ export interface ContactGroup {
   contactCount: number;
 }
 
-export type CampaignStatus = 'PENDING' | 'PROCESSING' | 'DELIVERED' | 'FAILED';
+export type CampaignStatus = 'PENDING' | 'PROCESSING' | 'DELIVERED' | 'PARTIAL' | 'FAILED';
 export type CampaignChannel = 'generic' | 'dnd';
 
 export interface Campaign {
@@ -42,7 +42,15 @@ export interface Campaign {
   failed: number;
   status: CampaignStatus;
   isAdminCampaign: boolean;
+  provider: 'termii' | 'sendchamp';
   createdAt: string;
+}
+
+/** Admin-only view of a campaign — who it belongs to, and the real
+ *  reason on a failed/partial send. Never returned to the customer. */
+export interface AdminCampaign extends Campaign {
+  userEmail: string;
+  providerError: string;
 }
 
 export interface WalletHistoryEntry {

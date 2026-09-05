@@ -19,7 +19,10 @@ export default function CampaignReportPage() {
   // Poll the backend (which itself proxies Termii's Fetch Campaign History)
   // every few seconds while the campaign is still in flight.
   useEffect(() => {
-    if (!campaign || campaign.status === 'DELIVERED' || campaign.status === 'FAILED') return;
+    // PARTIAL is also terminal — the backend resolves a direct send fully
+    // synchronously, so nothing more will ever change on it either.
+    if (!campaign) return;
+    if (campaign.status === 'DELIVERED' || campaign.status === 'PARTIAL' || campaign.status === 'FAILED') return;
     const interval = setInterval(() => {
       fetchCampaign(campaignId);
     }, 4000);

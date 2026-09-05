@@ -96,6 +96,7 @@ export interface ApiSMSLog {
 export interface ApiCampaign {
   id: number;
   is_admin_campaign: boolean;
+  provider: 'termii' | 'sendchamp';
   sender_id: string;
   message: string;
   channel: 'generic' | 'dnd';
@@ -105,9 +106,15 @@ export interface ApiCampaign {
   failed: number;
   total_cost: string;
   termii_cost: string;
-  status: 'PENDING' | 'PROCESSING' | 'DELIVERED' | 'FAILED';
+  status: 'PENDING' | 'PROCESSING' | 'DELIVERED' | 'PARTIAL' | 'FAILED';
   created_at: string;
   logs: ApiSMSLog[];
+}
+
+/** GET /api/admin/all-campaigns/ only — never a customer-facing response. */
+export interface ApiAdminCampaign extends ApiCampaign {
+  user_email: string;
+  provider_error: string;
 }
 
 export interface ApiRate {
@@ -158,6 +165,7 @@ export const api = {
   getRate: () => request<ApiRate>('/api/rate/'),
 
   listCampaigns: () => request<ApiCampaign[]>('/api/campaigns/'),
+  adminListAllCampaigns: () => request<ApiAdminCampaign[]>('/api/admin/all-campaigns/'),
   createCampaign: (payload: {
     sender_id: string;
     message: string;

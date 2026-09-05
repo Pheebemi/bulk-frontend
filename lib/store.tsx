@@ -4,12 +4,14 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode } fr
 import {
   api,
   ApiCampaign,
+  ApiAdminCampaign,
   ApiContactGroup,
   ApiError,
   ApiSenderID,
   ApiAdminUser,
 } from '@/lib/api';
 import type {
+  AdminCampaign,
   AdminUser,
   Campaign,
   CampaignChannel,
@@ -59,8 +61,13 @@ function mapCampaign(c: ApiCampaign): Campaign {
     failed: c.failed,
     status: c.status,
     isAdminCampaign: c.is_admin_campaign,
+    provider: c.provider,
     createdAt: c.created_at,
   };
+}
+
+function mapAdminCampaign(c: ApiAdminCampaign): AdminCampaign {
+  return { ...mapCampaign(c), userEmail: c.user_email, providerError: c.provider_error };
 }
 
 function mapAdminUser(u: ApiAdminUser): AdminUser {
@@ -311,6 +318,10 @@ interface AdminStoreValue {
   senderIds: SenderId[];
   users: AdminUser[];
   adminCampaigns: Campaign[];
+  /** Every campaign on the platform, customer and admin sends alike —
+   *  for the campaign monitor, distinct from adminCampaigns above
+   *  (admin's own sends only, backing the Send screen's history). */
+  allCampaigns: AdminCampaign[];
   login: (email: string, password: string) => Promise<Result>;
   logout: () => void;
   refreshSenderIds: () => Promise<void>;
@@ -319,6 +330,7 @@ interface AdminStoreValue {
   adjustUserBalance: (userId: number, amount: number, direction: 'credit' | 'debit', reason: string) => Promise<Result>;
   setRate: (rate: PlatformRate) => Promise<Result>;
   refreshAdminCampaigns: () => Promise<void>;
+  refreshAllCampaigns: () => Promise<void>;
   sendCampaign: (args: {
     senderId: string;
     channel: CampaignChannel;
@@ -337,18 +349,21 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [senderIds, setSenderIds] = useState<SenderId[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [adminCampaigns, setAdminCampaigns] = useState<Campaign[]>([]);
+  const [allCampaigns, setAllCampaigns] = useState<AdminCampaign[]>([]);
 
   const loadAll = async () => {
-    const [rateRes, sidRes, usersRes, campaignsRes] = await Promise.allSettled([
+    const [rateRes, sidRes, usersRes, campaignsRes, allCampaignsRes] = await Promise.allSettled([
       api.adminGetRate(),
       api.adminListSenderIds(),
       api.adminListUsers(),
       api.adminListCampaigns(),
+      api.adminListAllCampaigns(),
     ]);
     if (rateRes.status === 'fulfilled') setRateState({ genericRate: parseFloat(rateRes.value.generic_rate), dndRate: parseFloat(rateRes.value.dnd_rate) });
     if (sidRes.status === 'fulfilled') setSenderIds(sidRes.value.map(mapSenderId));
     if (usersRes.status === 'fulfilled') setUsers(usersRes.value.map(mapAdminUser));
     if (campaignsRes.status === 'fulfilled') setAdminCampaigns(campaignsRes.value.map(mapCampaign));
+    if (allCampaignsRes.status === 'fulfilled') setAllCampaigns(allCampaignsRes.value.map(mapAdminCampaign));
   };
 
   useEffect(() => {
@@ -390,6 +405,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const refreshSenderIds = async () => setSenderIds((await api.adminListSenderIds()).map(mapSenderId));
   const refreshUsers = async () => setUsers((await api.adminListUsers()).map(mapAdminUser));
   const refreshAdminCampaigns = async () => setAdminCampaigns((await api.adminListCampaigns()).map(mapCampaign));
+  const refreshAllCampaigns = async () => setAllCampaigns((await api.adminListAllCampaigns()).map(mapAdminCampaign));
 
   const setDndWhitelisted: AdminStoreValue['setDndWhitelisted'] = async (id, whitelisted) => {
     const updated = mapSenderId(await api.adminSetDndWhitelisted(id, whitelisted));
@@ -434,12 +450,12 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AdminStoreValue>(
     () => ({
-      authed, authChecked, rate, senderIds, users, adminCampaigns,
+      authed, authChecked, rate, senderIds, users, adminCampaigns, allCampaigns,
       login, logout, refreshSenderIds, setDndWhitelisted, refreshUsers, adjustUserBalance, setRate,
-      refreshAdminCampaigns, sendCampaign,
+      refreshAdminCampaigns, refreshAllCampaigns, sendCampaign,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authed, authChecked, rate, senderIds, users, adminCampaigns],
+    [authed, authChecked, rate, senderIds, users, adminCampaigns, allCampaigns],
   );
 
   return <AdminStoreContext.Provider value={value}>{children}</AdminStoreContext.Provider>;
