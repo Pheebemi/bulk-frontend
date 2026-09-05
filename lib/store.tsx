@@ -1,195 +1,293 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import {
+  api,
+  ApiCampaign,
+  ApiContactGroup,
+  ApiError,
+  ApiSenderID,
+  ApiAdminUser,
+} from '@/lib/api';
 import type {
+  AdminUser,
   Campaign,
   CampaignChannel,
-  Contact,
   ContactGroup,
   PlatformRate,
   SenderId,
 } from '@/types';
-import { countSegments } from '@/lib/money';
 
-/**
- * Mock, localStorage-backed app state for both the user app and the admin
- * console. There is no backend yet (bulk-backend is next) — every action
- * here mutates local state directly instead of calling lib/api.ts. When the
- * backend exists, swap each action's body for the matching api.* call and
- * keep the same function signatures so pages don't need to change.
- */
+type Result = { ok: true } | { ok: false; error: string };
 
-function useLocalStorageState<T>(key: string, initial: T): [T, (v: T | ((prev: T) => T)) => void] {
-  const [state, setState] = useState<T>(initial);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (raw) setState(JSON.parse(raw));
-    } catch {
-      // ignore corrupt storage
-    }
-    setHydrated(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    } catch {
-      // ignore quota errors
-    }
-  }, [key, state, hydrated]);
-
-  return [state, setState];
+function errorMessage(e: unknown): string {
+  return e instanceof ApiError ? e.message : 'Something went wrong. Please try again.';
 }
 
-let idCounter = 1;
-function nextId(prefix: string) {
-  idCounter += 1;
-  return `${prefix}_${Date.now()}_${idCounter}`;
+function mapGroup(g: ApiContactGroup): ContactGroup {
+  return {
+    id: g.id,
+    name: g.name,
+    contactCount: g.contact_count,
+    contacts: g.contacts.map((c) => ({ id: c.id, firstName: c.first_name, lastName: c.last_name, phone: c.phone_number })),
+  };
+}
+
+function mapSenderId(s: ApiSenderID): SenderId {
+  return {
+    id: s.id,
+    name: s.name,
+    status: s.platform_status,
+    dndWhitelisted: s.termii_dnd_whitelisted,
+    createdAt: s.created_at,
+    userEmail: s.user_email,
+  };
+}
+
+function mapCampaign(c: ApiCampaign): Campaign {
+  return {
+    id: c.id,
+    name: c.message.slice(0, 32) || `Campaign #${c.id}`,
+    channel: c.channel,
+    senderId: c.sender_id,
+    message: c.message,
+    recipients: c.total_recipients,
+    cost: parseFloat(c.total_cost),
+    termiiCost: parseFloat(c.termii_cost),
+    delivered: c.delivered,
+    failed: c.failed,
+    status: c.status,
+    isAdminCampaign: c.is_admin_campaign,
+    createdAt: c.created_at,
+  };
+}
+
+function mapAdminUser(u: ApiAdminUser): AdminUser {
+  return {
+    id: u.id,
+    name: u.full_name || u.email,
+    email: u.email,
+    balance: parseFloat(u.balance),
+    history: u.history.map((h) => ({ id: h.id, description: h.description, amount: parseFloat(h.amount), createdAt: h.created_at })),
+  };
 }
 
 // ---------------------------------------------------------------------------
 // User store
 // ---------------------------------------------------------------------------
 
-interface UserState {
+interface UserStoreValue {
   authed: boolean;
+  authChecked: boolean;
   wallet: number;
+  fullName: string;
   groups: ContactGroup[];
   senderIds: SenderId[];
   campaigns: Campaign[];
-}
-
-const DEFAULT_RATE: PlatformRate = { genericRate: 8, dndRate: 10 };
-
-const initialUserState: UserState = {
-  authed: false,
-  wallet: 0,
-  groups: [
-    {
-      id: 'grp_1',
-      name: 'VIP Customers',
-      contacts: [
-        { id: 'c1', firstName: 'Ada', lastName: 'Obi', phone: '2348012345678' },
-        { id: 'c2', firstName: 'Chidi', lastName: 'Eze', phone: '2348023456789' },
-      ],
-    },
-    {
-      id: 'grp_2',
-      name: 'Newsletter List',
-      contacts: [
-        { id: 'c3', firstName: 'Tunde', lastName: 'Bello', phone: '2348045678901' },
-        { id: 'c4', firstName: 'Grace', lastName: 'Yusuf', phone: '2348056789012' },
-      ],
-    },
-  ],
-  senderIds: [
-    { id: 'sid_0', name: 'Termii', status: 'active', dndWhitelisted: false, createdAt: new Date().toISOString() },
-    { id: 'sid_1', name: 'PHEEDEV', status: 'pending', dndWhitelisted: false, createdAt: new Date().toISOString() },
-  ],
-  campaigns: [],
-};
-
-interface UserStoreValue extends UserState {
-  login: () => void;
+  rate: PlatformRate;
+  login: (email: string, password: string) => Promise<Result>;
+  signup: (email: string, password: string, fullName: string, phone: string) => Promise<Result>;
   logout: () => void;
-  fundWallet: (amount: number) => void;
-  addGroup: (name: string) => ContactGroup;
-  addContact: (groupId: string, contact: Omit<Contact, 'id'>) => void;
-  requestSenderId: (name: string) => void;
+  refreshWallet: () => Promise<void>;
+  refreshGroups: () => Promise<void>;
+  createGroup: (name: string) => Promise<ContactGroup | null>;
+  addContact: (groupId: number, contact: { firstName: string; lastName: string; phone: string }) => Promise<void>;
+  uploadCsv: (file: File, groupName: string) => Promise<Result>;
+  refreshSenderIds: () => Promise<void>;
+  requestSenderId: (name: string, useCase: string) => Promise<Result>;
+  refreshCampaigns: () => Promise<void>;
   createCampaign: (args: {
     senderId: string;
     channel: CampaignChannel;
     message: string;
-    groupId?: string;
+    groupId?: number;
     manualNumbers?: string[];
-  }) => { ok: true; campaign: Campaign } | { ok: false; error: string };
-  retryCampaign: (id: string) => void;
-  rate: PlatformRate;
+  }) => Promise<{ ok: true; campaign: Campaign } | { ok: false; error: string }>;
+  fetchCampaign: (id: number) => Promise<Campaign | null>;
+  retryCampaign: (id: number) => Promise<Result>;
+  verifyPayment: (transactionId: string, txRef: string) => Promise<Result>;
 }
 
 const UserStoreContext = createContext<UserStoreValue | null>(null);
 
 export function UserStoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useLocalStorageState<UserState>('reachly_user_store', initialUserState);
-  const rate = DEFAULT_RATE; // TODO: fetch from backend PlatformRate once it exists
+  const [authed, setAuthed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [wallet, setWallet] = useState(0);
+  const [fullName, setFullName] = useState('');
+  const [groups, setGroups] = useState<ContactGroup[]>([]);
+  const [senderIds, setSenderIds] = useState<SenderId[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [rate, setRate] = useState<PlatformRate>({ genericRate: 8, dndRate: 10 });
 
-  const login = () => setState((s) => ({ ...s, authed: true }));
-  const logout = () => setState((s) => ({ ...s, authed: false }));
+  const loadAll = async () => {
+    const [groupsRes, senderIdsRes, campaignsRes, rateRes] = await Promise.allSettled([
+      api.listContactGroups(),
+      api.listSenderIds(),
+      api.listCampaigns(),
+      api.getRate(),
+    ]);
+    if (groupsRes.status === 'fulfilled') setGroups(groupsRes.value.map(mapGroup));
+    if (senderIdsRes.status === 'fulfilled') setSenderIds(senderIdsRes.value.map(mapSenderId));
+    if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.map(mapCampaign));
+    if (rateRes.status === 'fulfilled') setRate({ genericRate: parseFloat(rateRes.value.generic_rate), dndRate: parseFloat(rateRes.value.dnd_rate) });
+  };
 
-  const fundWallet = (amount: number) => setState((s) => ({ ...s, wallet: s.wallet + amount }));
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    if (!token) {
+      setAuthChecked(true);
+      return;
+    }
+    api
+      .me()
+      .then((user) => {
+        setAuthed(true);
+        setWallet(parseFloat(user.balance));
+        setFullName(user.full_name);
+        return loadAll();
+      })
+      .catch(() => {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+      })
+      .finally(() => setAuthChecked(true));
+  }, []);
 
-  const addGroup = (name: string): ContactGroup => {
-    const group: ContactGroup = { id: nextId('grp'), name, contacts: [] };
-    setState((s) => ({ ...s, groups: [...s.groups, group] }));
+  const applyAuth = (token: string, refresh: string, user: { balance: string; full_name: string }) => {
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('refreshToken', refresh);
+    setWallet(parseFloat(user.balance));
+    setFullName(user.full_name);
+    setAuthed(true);
+    loadAll();
+  };
+
+  const login: UserStoreValue['login'] = async (email, password) => {
+    try {
+      const res = await api.login(email, password);
+      applyAuth(res.token, res.refresh, res.user);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const signup: UserStoreValue['signup'] = async (email, password, full_name, phone_number) => {
+    try {
+      const res = await api.signup({ email, password, full_name, phone_number });
+      applyAuth(res.token, res.refresh, res.user);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
+    setAuthed(false);
+    setGroups([]);
+    setSenderIds([]);
+    setCampaigns([]);
+  };
+
+  const refreshWallet = async () => {
+    const user = await api.me();
+    setWallet(parseFloat(user.balance));
+  };
+
+  const refreshGroups = async () => setGroups((await api.listContactGroups()).map(mapGroup));
+  const refreshSenderIds = async () => setSenderIds((await api.listSenderIds()).map(mapSenderId));
+  const refreshCampaigns = async () => setCampaigns((await api.listCampaigns()).map(mapCampaign));
+
+  const createGroup: UserStoreValue['createGroup'] = async (name) => {
+    const group = mapGroup(await api.createContactGroup(name));
+    setGroups((g) => [...g, group]);
     return group;
   };
 
-  const addContact = (groupId: string, contact: Omit<Contact, 'id'>) => {
-    setState((s) => ({
-      ...s,
-      groups: s.groups.map((g) =>
-        g.id === groupId ? { ...g, contacts: [...g.contacts, { ...contact, id: nextId('c') }] } : g,
-      ),
-    }));
+  const addContact: UserStoreValue['addContact'] = async (groupId, contact) => {
+    await api.addContact(groupId, { first_name: contact.firstName, last_name: contact.lastName, phone_number: contact.phone });
+    await refreshGroups();
   };
 
-  const requestSenderId = (name: string) => {
-    setState((s) => ({
-      ...s,
-      senderIds: [
-        ...s.senderIds,
-        { id: nextId('sid'), name: name.toUpperCase(), status: 'pending', dndWhitelisted: false, createdAt: new Date().toISOString() },
-      ],
-    }));
+  const uploadCsv: UserStoreValue['uploadCsv'] = async (file, groupName) => {
+    try {
+      const group = mapGroup(await api.uploadContactsCsv(file, groupName));
+      setGroups((g) => [...g, group]);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
   };
 
-  const createCampaign: UserStoreValue['createCampaign'] = ({ senderId, channel, message, groupId, manualNumbers }) => {
-    const group = groupId ? state.groups.find((g) => g.id === groupId) : undefined;
-    const recipients = group ? group.contacts.length : (manualNumbers ?? []).length;
-    if (recipients === 0) return { ok: false, error: 'No recipients selected.' };
-
-    const segments = countSegments(message);
-    const rateForChannel = channel === 'dnd' ? rate.dndRate : rate.genericRate;
-    const cost = recipients * segments * rateForChannel;
-    if (cost > state.wallet) return { ok: false, error: 'Insufficient wallet balance.' };
-
-    const failed = Math.max(0, Math.round(recipients * 0.03));
-    const delivered = recipients - failed;
-    const campaign: Campaign = {
-      id: nextId('camp'),
-      name: message.slice(0, 32) || 'Untitled campaign',
-      channel,
-      senderId,
-      message,
-      recipients,
-      cost,
-      termiiCost: recipients * segments * 6, // reference: Termii's own generic-route cost per their docs example
-      delivered,
-      failed,
-      status: failed > 0 && delivered === 0 ? 'FAILED' : 'DELIVERED',
-      isAdminCampaign: false,
-      createdAt: new Date().toISOString(),
-    };
-    setState((s) => ({ ...s, wallet: s.wallet - cost, campaigns: [campaign, ...s.campaigns] }));
-    return { ok: true, campaign };
+  const requestSenderId: UserStoreValue['requestSenderId'] = async (name, useCase) => {
+    try {
+      const senderId = mapSenderId(await api.requestSenderId(name, useCase));
+      setSenderIds((s) => [...s, senderId]);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
   };
 
-  const retryCampaign = (id: string) => {
-    setState((s) => ({
-      ...s,
-      campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, status: 'DELIVERED', failed: 0, delivered: c.recipients } : c)),
-    }));
+  const createCampaign: UserStoreValue['createCampaign'] = async ({ senderId, channel, message, groupId, manualNumbers }) => {
+    try {
+      const campaign = await api.createCampaign({
+        sender_id: senderId,
+        message,
+        channel,
+        group_id: groupId,
+        manual_numbers: manualNumbers,
+      });
+      const mapped = mapCampaign(campaign);
+      setCampaigns((c) => [mapped, ...c]);
+      await refreshWallet();
+      return { ok: true, campaign: mapped };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const fetchCampaign: UserStoreValue['fetchCampaign'] = async (id) => {
+    try {
+      const mapped = mapCampaign(await api.getCampaign(id));
+      setCampaigns((cs) => cs.map((c) => (c.id === id ? mapped : c)));
+      return mapped;
+    } catch {
+      return null;
+    }
+  };
+
+  const retryCampaign: UserStoreValue['retryCampaign'] = async (id) => {
+    try {
+      const mapped = mapCampaign(await api.retryCampaign(id));
+      setCampaigns((cs) => cs.map((c) => (c.id === id ? mapped : c)));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const verifyPayment: UserStoreValue['verifyPayment'] = async (transactionId, txRef) => {
+    try {
+      const res = await api.verifyPayment(transactionId, txRef);
+      setWallet(parseFloat(res.balance));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
   };
 
   const value = useMemo<UserStoreValue>(
-    () => ({ ...state, login, logout, fundWallet, addGroup, addContact, requestSenderId, createCampaign, retryCampaign, rate }),
+    () => ({
+      authed, authChecked, wallet, fullName, groups, senderIds, campaigns, rate,
+      login, signup, logout, refreshWallet, refreshGroups, createGroup, addContact, uploadCsv,
+      refreshSenderIds, requestSenderId, refreshCampaigns, createCampaign, fetchCampaign, retryCampaign, verifyPayment,
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state],
+    [authed, authChecked, wallet, fullName, groups, senderIds, campaigns, rate],
   );
 
   return <UserStoreContext.Provider value={value}>{children}</UserStoreContext.Provider>;
@@ -205,134 +303,142 @@ export function useUserStore(): UserStoreValue {
 // Admin store
 // ---------------------------------------------------------------------------
 
-interface PendingSenderId {
-  id: string;
-  name: string;
-  user: string;
-  date: string;
-}
-
-interface ProcessedSenderId extends PendingSenderId {
-  status: 'Approved' | 'Rejected';
-}
-
-interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  balance: number;
-  history: { id: string; date: string; description: string; amount: number }[];
-}
-
-interface AdminState {
+interface AdminStoreValue {
   authed: boolean;
+  authChecked: boolean;
   rate: PlatformRate;
-  pending: PendingSenderId[];
-  processed: ProcessedSenderId[];
+  senderIds: SenderId[];
   users: AdminUser[];
   adminCampaigns: Campaign[];
-}
-
-const initialAdminState: AdminState = {
-  authed: false,
-  rate: DEFAULT_RATE,
-  pending: [
-    { id: 'p1', name: 'ADASTORE', user: 'Ada Obi', date: 'Sep 3, 2026' },
-    { id: 'p2', name: 'TBFASHION', user: 'Tunde Bello', date: 'Sep 2, 2026' },
-  ],
-  processed: [],
-  users: [
-    { id: 'u1', name: 'Ada Obi', email: 'ada@obi.com', balance: 45230, history: [] },
-    { id: 'u2', name: 'Tunde Bello', email: 'tunde@bello.com', balance: 12400, history: [] },
-  ],
-  adminCampaigns: [],
-};
-
-interface AdminStoreValue extends AdminState {
-  login: () => void;
+  login: (email: string, password: string) => Promise<Result>;
   logout: () => void;
-  approve: (id: string) => void;
-  reject: (id: string) => void;
-  adjustUserBalance: (userId: string, amount: number, reason: string) => void;
-  setRate: (rate: PlatformRate) => void;
-  sendCampaign: (args: { senderId: string; channel: CampaignChannel; message: string; recipients: number }) => Campaign;
+  refreshSenderIds: () => Promise<void>;
+  setDndWhitelisted: (id: number, whitelisted: boolean) => Promise<void>;
+  refreshUsers: () => Promise<void>;
+  adjustUserBalance: (userId: number, amount: number, direction: 'credit' | 'debit', reason: string) => Promise<Result>;
+  setRate: (rate: PlatformRate) => Promise<Result>;
+  refreshAdminCampaigns: () => Promise<void>;
+  sendCampaign: (args: {
+    senderId: string;
+    channel: CampaignChannel;
+    message: string;
+    manualNumbers?: string[];
+    recipientCount?: number;
+  }) => Promise<Result>;
 }
 
 const AdminStoreContext = createContext<AdminStoreValue | null>(null);
 
 export function AdminStoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useLocalStorageState<AdminState>('reachly_admin_store', initialAdminState);
+  const [authed, setAuthed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [rate, setRateState] = useState<PlatformRate>({ genericRate: 8, dndRate: 10 });
+  const [senderIds, setSenderIds] = useState<SenderId[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [adminCampaigns, setAdminCampaigns] = useState<Campaign[]>([]);
 
-  const login = () => setState((s) => ({ ...s, authed: true }));
-  const logout = () => setState((s) => ({ ...s, authed: false }));
-
-  const approve = (id: string) => {
-    setState((s) => {
-      const item = s.pending.find((p) => p.id === id);
-      if (!item) return s;
-      return {
-        ...s,
-        pending: s.pending.filter((p) => p.id !== id),
-        processed: [{ ...item, status: 'Approved' }, ...s.processed],
-      };
-    });
+  const loadAll = async () => {
+    const [rateRes, sidRes, usersRes, campaignsRes] = await Promise.allSettled([
+      api.adminGetRate(),
+      api.adminListSenderIds(),
+      api.adminListUsers(),
+      api.adminListCampaigns(),
+    ]);
+    if (rateRes.status === 'fulfilled') setRateState({ genericRate: parseFloat(rateRes.value.generic_rate), dndRate: parseFloat(rateRes.value.dnd_rate) });
+    if (sidRes.status === 'fulfilled') setSenderIds(sidRes.value.map(mapSenderId));
+    if (usersRes.status === 'fulfilled') setUsers(usersRes.value.map(mapAdminUser));
+    if (campaignsRes.status === 'fulfilled') setAdminCampaigns(campaignsRes.value.map(mapCampaign));
   };
 
-  const reject = (id: string) => {
-    setState((s) => {
-      const item = s.pending.find((p) => p.id === id);
-      if (!item) return s;
-      return {
-        ...s,
-        pending: s.pending.filter((p) => p.id !== id),
-        processed: [{ ...item, status: 'Rejected' }, ...s.processed],
-      };
-    });
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('adminAuthToken') : null;
+    if (!token) {
+      setAuthChecked(true);
+      return;
+    }
+    api
+      .adminGetRate()
+      .then(() => {
+        setAuthed(true);
+        return loadAll();
+      })
+      .catch(() => {
+        localStorage.removeItem('adminAuthToken');
+      })
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  const login: AdminStoreValue['login'] = async (email, password) => {
+    try {
+      const res = await api.login(email, password);
+      if (!res.user.is_staff) return { ok: false, error: 'This account is not an admin account.' };
+      localStorage.setItem('adminAuthToken', res.token);
+      setAuthed(true);
+      await loadAll();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
   };
 
-  const adjustUserBalance = (userId: string, amount: number, reason: string) => {
-    setState((s) => ({
-      ...s,
-      users: s.users.map((u) =>
-        u.id === userId
-          ? {
-              ...u,
-              balance: u.balance + amount,
-              history: [{ id: nextId('h'), date: new Date().toISOString(), description: reason, amount }, ...u.history],
-            }
-          : u,
-      ),
-    }));
+  const logout = () => {
+    localStorage.removeItem('adminAuthToken');
+    setAuthed(false);
   };
 
-  const setRate = (rate: PlatformRate) => setState((s) => ({ ...s, rate }));
+  const refreshSenderIds = async () => setSenderIds((await api.adminListSenderIds()).map(mapSenderId));
+  const refreshUsers = async () => setUsers((await api.adminListUsers()).map(mapAdminUser));
+  const refreshAdminCampaigns = async () => setAdminCampaigns((await api.adminListCampaigns()).map(mapCampaign));
 
-  const sendCampaign: AdminStoreValue['sendCampaign'] = ({ senderId, channel, message, recipients }) => {
-    const segments = countSegments(message);
-    const termiiRatePerUnit = channel === 'dnd' ? 8 : 6; // reference cost only — admin sends aren't charged
-    const campaign: Campaign = {
-      id: nextId('camp'),
-      name: message.slice(0, 32) || 'Admin campaign',
-      channel,
-      senderId,
-      message,
-      recipients,
-      cost: 0,
-      termiiCost: recipients * segments * termiiRatePerUnit,
-      delivered: recipients,
-      failed: 0,
-      status: 'DELIVERED',
-      isAdminCampaign: true,
-      createdAt: new Date().toISOString(),
-    };
-    setState((s) => ({ ...s, adminCampaigns: [campaign, ...s.adminCampaigns] }));
-    return campaign;
+  const setDndWhitelisted: AdminStoreValue['setDndWhitelisted'] = async (id, whitelisted) => {
+    const updated = mapSenderId(await api.adminSetDndWhitelisted(id, whitelisted));
+    setSenderIds((s) => s.map((x) => (x.id === id ? updated : x)));
+  };
+
+  const adjustUserBalance: AdminStoreValue['adjustUserBalance'] = async (userId, amount, direction, reason) => {
+    try {
+      await api.adminAdjustWallet(userId, String(amount), direction, reason);
+      await refreshUsers();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const setRate: AdminStoreValue['setRate'] = async (newRate) => {
+    try {
+      const res = await api.adminSetRate({ generic_rate: String(newRate.genericRate), dnd_rate: String(newRate.dndRate) });
+      setRateState({ genericRate: parseFloat(res.generic_rate), dndRate: parseFloat(res.dnd_rate) });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const sendCampaign: AdminStoreValue['sendCampaign'] = async ({ senderId, channel, message, manualNumbers, recipientCount }) => {
+    try {
+      const campaign = await api.adminCreateCampaign({
+        sender_id: senderId,
+        message,
+        channel,
+        manual_numbers: manualNumbers,
+        recipient_count: recipientCount,
+      });
+      setAdminCampaigns((c) => [mapCampaign(campaign), ...c]);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
   };
 
   const value = useMemo<AdminStoreValue>(
-    () => ({ ...state, login, logout, approve, reject, adjustUserBalance, setRate, sendCampaign }),
+    () => ({
+      authed, authChecked, rate, senderIds, users, adminCampaigns,
+      login, logout, refreshSenderIds, setDndWhitelisted, refreshUsers, adjustUserBalance, setRate,
+      refreshAdminCampaigns, sendCampaign,
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state],
+    [authed, authChecked, rate, senderIds, users, adminCampaigns],
   );
 
   return <AdminStoreContext.Provider value={value}>{children}</AdminStoreContext.Provider>;

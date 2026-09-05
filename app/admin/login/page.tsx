@@ -1,16 +1,28 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminStore } from '@/lib/store';
 
 export default function AdminLoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const { login } = useAdminStore();
   const router = useRouter();
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login();
-    router.push('/admin/dashboard');
+    setError('');
+    setSubmitting(true);
+    const result = await login(email, password);
+    setSubmitting(false);
+    if (result.ok) {
+      router.push('/admin/dashboard');
+    } else {
+      setError(result.error);
+    }
   };
 
   return (
@@ -28,11 +40,26 @@ export default function AdminLoginPage() {
         <p className="mb-6 text-sm text-muted">Restricted to platform staff.</p>
         <form onSubmit={submit}>
           <label className="mb-1.5 block text-xs font-bold text-muted">EMAIL</label>
-          <input type="email" required className="mb-4 w-full rounded-lg border border-border bg-bg px-3.5 py-3 text-sm text-ink" placeholder="admin@reachly.com" />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="mb-4 w-full rounded-lg border border-border bg-bg px-3.5 py-3 text-sm text-ink"
+            placeholder="admin@reachly.com"
+          />
           <label className="mb-1.5 block text-xs font-bold text-muted">PASSWORD</label>
-          <input type="password" required className="mb-6 w-full rounded-lg border border-border bg-bg px-3.5 py-3 text-sm text-ink" placeholder="••••••••" />
-          <button type="submit" className="w-full rounded-lg bg-purple-600 py-3.5 text-sm font-bold text-white">
-            Log in
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="mb-6 w-full rounded-lg border border-border bg-bg px-3.5 py-3 text-sm text-ink"
+            placeholder="••••••••"
+          />
+          {error && <div className="mb-4 rounded-lg bg-danger/10 px-3.5 py-3 text-xs font-semibold text-danger">{error}</div>}
+          <button type="submit" disabled={submitting} className="w-full rounded-lg bg-purple-600 py-3.5 text-sm font-bold text-white disabled:opacity-60">
+            {submitting ? 'Please wait...' : 'Log in'}
           </button>
         </form>
       </div>

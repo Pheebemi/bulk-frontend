@@ -1,55 +1,57 @@
 'use client';
 
+import { useState } from 'react';
 import { useAdminStore } from '@/lib/store';
+import type { SenderIdStatus } from '@/types';
+
+const STATUS_STYLE: Record<SenderIdStatus, string> = {
+  active: 'bg-success/10 text-success',
+  pending: 'bg-warning/10 text-warning',
+  blocked: 'bg-danger/10 text-danger',
+};
 
 export default function ApprovalsPage() {
-  const { pending, processed, approve, reject } = useAdminStore();
+  const { senderIds, setDndWhitelisted } = useAdminStore();
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const toggle = async (id: number, current: boolean) => {
+    setBusyId(id);
+    await setDndWhitelisted(id, !current);
+    setBusyId(null);
+  };
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-extrabold text-ink">Sender ID approvals</h1>
-
-      <h3 className="mb-2.5 text-sm font-bold text-muted">PENDING ({pending.length})</h3>
-      <div className="mb-7 overflow-hidden rounded-xl border border-border bg-surface">
-        <div className="grid grid-cols-4 border-b border-border px-4 py-3 text-xs font-bold text-muted">
+      <h1 className="mb-2 text-2xl font-extrabold text-ink">Sender IDs</h1>
+      <p className="mb-6 max-w-2xl text-sm text-muted">
+        Status here is synced directly from Termii's own review team (<code>active</code> / <code>pending</code> /{' '}
+        <code>blocked</code>) — we don't decide it. The one thing we do control is confirming DND whitelisting once
+        Termii's support has told you it's done for a given Sender ID.
+      </p>
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+        <div className="grid grid-cols-5 border-b border-border px-4 py-3 text-xs font-bold text-muted">
           <span>SENDER ID</span>
           <span>USER</span>
-          <span>DATE</span>
-          <span>ACTION</span>
+          <span>STATUS</span>
+          <span>REQUESTED</span>
+          <span>DND WHITELISTED</span>
         </div>
-        {pending.length === 0 && <div className="px-4 py-5 text-sm text-muted">Nothing pending.</div>}
-        {pending.map((p) => (
-          <div key={p.id} className="grid grid-cols-4 items-center border-b border-border px-4 py-3.5 text-sm last:border-b-0">
-            <span className="font-semibold">{p.name}</span>
-            <span className="text-muted">{p.user}</span>
-            <span className="text-muted">{p.date}</span>
-            <span className="flex gap-2">
-              <button onClick={() => approve(p.id)} className="rounded-md bg-success px-3 py-1.5 text-xs font-bold text-white">
-                Approve
-              </button>
-              <button onClick={() => reject(p.id)} className="rounded-md bg-danger px-3 py-1.5 text-xs font-bold text-white">
-                Reject
-              </button>
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <h3 className="mb-2.5 text-sm font-bold text-muted">RECENTLY PROCESSED</h3>
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
-        {processed.length === 0 && <div className="px-4 py-5 text-sm text-muted">Nothing processed yet.</div>}
-        {processed.map((p) => (
-          <div key={p.id} className="flex items-center justify-between border-b border-border px-4 py-3.5 text-sm last:border-b-0">
-            <span>
-              {p.name} — {p.user}
-            </span>
-            <span
-              className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${
-                p.status === 'Approved' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+        {senderIds.length === 0 && <div className="px-4 py-5 text-sm text-muted">No sender ID requests yet.</div>}
+        {senderIds.map((s) => (
+          <div key={s.id} className="grid grid-cols-5 items-center border-b border-border px-4 py-3.5 text-sm last:border-b-0">
+            <span className="font-semibold">{s.name}</span>
+            <span className="text-muted">{s.userEmail ?? '—'}</span>
+            <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold capitalize ${STATUS_STYLE[s.status]}`}>{s.status}</span>
+            <span className="text-muted">{new Date(s.createdAt).toLocaleDateString()}</span>
+            <button
+              onClick={() => toggle(s.id, s.dndWhitelisted)}
+              disabled={busyId === s.id}
+              className={`w-fit rounded-md px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 ${
+                s.dndWhitelisted ? 'bg-success' : 'bg-border !text-muted'
               }`}
             >
-              {p.status}
-            </span>
+              {s.dndWhitelisted ? 'Whitelisted' : 'Mark whitelisted'}
+            </button>
           </div>
         ))}
       </div>

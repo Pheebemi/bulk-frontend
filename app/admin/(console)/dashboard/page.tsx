@@ -5,20 +5,22 @@ import { useAdminStore } from '@/lib/store';
 import { formatNaira } from '@/lib/money';
 
 export default function AdminDashboardPage() {
-  const { pending, users } = useAdminStore();
+  const { senderIds, users, adminCampaigns } = useAdminStore();
+  const pending = senderIds.filter((s) => s.status === 'pending');
   const totalRevenue = users.reduce((sum, u) => sum + u.balance, 0);
+  const totalSms = adminCampaigns.reduce((sum, c) => sum + c.recipients, 0);
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Platform overview</h1>
       <div className="mb-7 grid grid-cols-3 gap-4">
-        <Stat label="Total users" value={String(users.length * 428)} />
-        <Stat label="Total SMS sent" value="482,930" />
-        <Stat label="Total revenue" value={formatNaira(totalRevenue)} />
+        <Stat label="Total users" value={String(users.length)} />
+        <Stat label="Admin SMS sent" value={totalSms.toLocaleString()} />
+        <Stat label="Total user balances" value={formatNaira(totalRevenue)} />
       </div>
 
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-ink">Pending sender ID approvals</h3>
+        <h3 className="text-base font-bold text-ink">Pending sender ID requests</h3>
         <Link href="/admin/approvals" className="text-sm font-bold text-accent">
           Review all &rarr;
         </Link>
@@ -28,9 +30,9 @@ export default function AdminDashboardPage() {
         {pending.map((p) => (
           <div key={p.id} className="flex justify-between border-b border-border px-4 py-3.5 text-sm last:border-b-0">
             <span>
-              <b>{p.name}</b> requested by {p.user}
+              <b>{p.name}</b> requested by {p.userEmail ?? 'unknown'}
             </span>
-            <span className="text-muted">{p.date}</span>
+            <span className="text-muted">{new Date(p.createdAt).toLocaleDateString()}</span>
           </div>
         ))}
       </div>

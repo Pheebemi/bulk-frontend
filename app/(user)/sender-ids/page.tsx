@@ -14,15 +14,27 @@ export default function SenderIdsPage() {
   const { senderIds, requestSenderId } = useUserStore();
   const [name, setName] = useState('');
   const [useCase, setUseCase] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = () => {
-    if (!name.trim()) return;
-    // TODO: call api.requestSenderId — hits Termii's POST /api/sender-id/request
-    // (sender_id, use_case, company) on the backend; status then syncs from
-    // Termii's GET /api/sender-id (active/pending/blocked), not set by us.
-    requestSenderId(name);
-    setName('');
-    setUseCase('');
+  const submit = async () => {
+    if (!name.trim() || !useCase.trim()) {
+      setError('Both the name and a real sample message are required.');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    // Hits Termii's POST /api/sender-id/request (sender_id, use_case,
+    // company) on the backend; status then syncs from Termii's GET
+    // /api/sender-id (active/pending/blocked), not set by us.
+    const result = await requestSenderId(name, useCase);
+    setSubmitting(false);
+    if (result.ok) {
+      setName('');
+      setUseCase('');
+    } else {
+      setError(result.error);
+    }
   };
 
   return (
@@ -58,8 +70,9 @@ export default function SenderIdsPage() {
             className="mb-3 min-h-[80px] w-full rounded-lg border border-border bg-bg p-3 text-sm text-ink"
           />
           <div className="mb-4 text-xs text-muted">Max 11 alphanumeric characters. Reviewed by Termii — not instant.</div>
-          <button onClick={submit} className="w-full rounded-lg bg-accent py-3 text-sm font-bold text-white">
-            Submit request
+          {error && <div className="mb-3 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
+          <button onClick={submit} disabled={submitting} className="w-full rounded-lg bg-accent py-3 text-sm font-bold text-white disabled:opacity-60">
+            {submitting ? 'Submitting...' : 'Submit request'}
           </button>
         </div>
       </div>

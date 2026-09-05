@@ -15,9 +15,10 @@ export default function NewCampaignPage() {
   const [channel, setChannel] = useState<CampaignChannel>('dnd');
   const [message, setMessage] = useState('');
   const [source, setSource] = useState<'group' | 'manual'>('group');
-  const [groupId, setGroupId] = useState(groups[0]?.id ?? '');
+  const [groupId, setGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [manual, setManual] = useState('');
   const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
 
   const recipients = useMemo(() => {
     if (source === 'group') return groups.find((g) => g.id === groupId)?.contacts.length ?? 0;
@@ -31,15 +32,17 @@ export default function NewCampaignPage() {
   const rateForChannel = channel === 'dnd' ? rate.dndRate : rate.genericRate;
   const estimatedCost = recipients * segments * rateForChannel;
 
-  const send = () => {
+  const send = async () => {
     setError('');
-    const result = createCampaign({
+    setSending(true);
+    const result = await createCampaign({
       senderId,
       channel,
       message,
       groupId: source === 'group' ? groupId : undefined,
       manualNumbers: source === 'manual' ? manual.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean) : undefined,
     });
+    setSending(false);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -106,7 +109,7 @@ export default function NewCampaignPage() {
               </button>
             </div>
             {source === 'group' ? (
-              <select value={groupId} onChange={(e) => setGroupId(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-sm text-ink">
+              <select value={groupId} onChange={(e) => setGroupId(Number(e.target.value))} className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-sm text-ink">
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name} — {g.contacts.length} contacts
@@ -135,8 +138,8 @@ export default function NewCampaignPage() {
           </div>
           <div className="mb-4 text-xs text-muted">Wallet balance after send: {formatNaira(wallet - estimatedCost)}</div>
           {error && <div className="mb-4 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
-          <button onClick={send} disabled={activeSenderIds.length === 0} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-50">
-            Send campaign
+          <button onClick={send} disabled={activeSenderIds.length === 0 || sending} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-50">
+            {sending ? 'Sending...' : 'Send campaign'}
           </button>
         </div>
       </div>

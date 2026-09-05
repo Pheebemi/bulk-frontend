@@ -1,38 +1,40 @@
 export type SenderIdStatus = 'active' | 'pending' | 'blocked';
 
 export interface SenderId {
-  id: string;
+  id: number;
   name: string;
   status: SenderIdStatus;
   dndWhitelisted: boolean;
   createdAt: string;
+  userEmail?: string;
 }
 
 export interface Contact {
-  id: string;
+  id: number;
   firstName: string;
   lastName: string;
   phone: string;
 }
 
 export interface ContactGroup {
-  id: string;
+  id: number;
   name: string;
   contacts: Contact[];
+  contactCount: number;
 }
 
 export type CampaignStatus = 'PENDING' | 'PROCESSING' | 'DELIVERED' | 'FAILED';
 export type CampaignChannel = 'generic' | 'dnd';
 
 export interface Campaign {
-  id: string;
+  id: number;
   name: string;
   channel: CampaignChannel;
   senderId: string;
   message: string;
   recipients: number;
-  cost: number; // platform rate charged to the user (0 for admin campaigns)
-  termiiCost: number; // what Termii actually charged (reference / margin tracking)
+  cost: number;
+  termiiCost: number;
   delivered: number;
   failed: number;
   status: CampaignStatus;
@@ -40,11 +42,19 @@ export interface Campaign {
   createdAt: string;
 }
 
-export interface WalletTx {
-  id: string;
-  date: string;
+export interface WalletHistoryEntry {
+  id: number;
   description: string;
-  amount: number; // positive = credit, negative = debit
+  amount: number;
+  createdAt: string;
+}
+
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  balance: number;
+  history: WalletHistoryEntry[];
 }
 
 export interface PlatformRate {

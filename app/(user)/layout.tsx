@@ -15,14 +15,19 @@ const navItems: NavItem[] = [
 ];
 
 export default function UserLayout({ children }: { children: React.ReactNode }) {
-  const { authed, wallet, logout } = useUserStore();
+  const { authed, authChecked, wallet, fullName, logout } = useUserStore();
   const router = useRouter();
 
   useEffect(() => {
-    if (!authed) router.replace('/login');
-  }, [authed, router]);
+    if (authChecked && !authed) router.replace('/login');
+  }, [authed, authChecked, router]);
 
+  if (!authChecked) return null;
   if (!authed) return null;
+
+  const initials = fullName
+    ? fullName.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+    : 'U';
 
   return (
     <AppShell
@@ -33,7 +38,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
       }}
       showBalance
       balance={wallet}
-      avatarInitials="AO"
+      avatarInitials={initials}
       avatarColor="bg-accent"
     >
       {children}

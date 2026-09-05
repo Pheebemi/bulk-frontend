@@ -7,19 +7,28 @@ import { formatNaira } from '@/lib/money';
 export default function AdminWalletsPage() {
   const { users, adjustUserBalance } = useAdminStore();
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState(users[0]?.id ?? '');
+  const [selectedId, setSelectedId] = useState<number>(users[0]?.id ?? 0);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const filtered = users.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
   const selected = users.find((u) => u.id === selectedId) ?? users[0];
 
-  const apply = (sign: 1 | -1) => {
+  const apply = async (direction: 'credit' | 'debit') => {
     const value = parseFloat(amount);
     if (!value || value <= 0 || !selected) return;
-    adjustUserBalance(selected.id, sign * value, reason || (sign > 0 ? 'Manual credit' : 'Manual debit'));
-    setAmount('');
-    setReason('');
+    setError('');
+    setBusy(true);
+    const result = await adjustUserBalance(selected.id, value, direction, reason || (direction === 'credit' ? 'Manual credit' : 'Manual debit'));
+    setBusy(false);
+    if (result.ok) {
+      setAmount('');
+      setReason('');
+    } else {
+      setError(result.error);
+    }
   };
 
   return (
@@ -85,11 +94,12 @@ export default function AdminWalletsPage() {
                 placeholder="Reason (e.g. bank transfer top-up)"
                 className="mb-3.5 w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm text-ink"
               />
+              {error && <div className="mb-3 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
               <div className="flex gap-2.5">
-                <button onClick={() => apply(1)} className="flex-1 rounded-lg bg-success py-2.5 text-sm font-bold text-white">
+                <button onClick={() => apply('credit')} disabled={busy} className="flex-1 rounded-lg bg-success py-2.5 text-sm font-bold text-white disabled:opacity-60">
                   Credit
                 </button>
-                <button onClick={() => apply(-1)} className="flex-1 rounded-lg bg-danger py-2.5 text-sm font-bold text-white">
+                <button onClick={() => apply('debit')} disabled={busy} className="flex-1 rounded-lg bg-danger py-2.5 text-sm font-bold text-white disabled:opacity-60">
                   Debit
                 </button>
               </div>

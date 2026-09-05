@@ -1,38 +1,63 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAdminStore } from '@/lib/store';
 import { formatNaira, countSegments } from '@/lib/money';
 import type { CampaignChannel } from '@/types';
 
 export default function AdminSendPage() {
-  const { rate, setRate, adminCampaigns, sendCampaign } = useAdminStore();
+  const { rate, setRate, senderIds, users, adminCampaigns, sendCampaign, refreshUsers } = useAdminStore();
+  const activeSenderIds = senderIds.filter((s) => s.status === 'active');
+  const [senderId, setSenderId] = useState('');
   const [channel, setChannel] = useState<CampaignChannel>('generic');
   const [message, setMessage] = useState('');
   const [target, setTarget] = useState<'all' | 'custom'>('all');
   const [manual, setManual] = useState('');
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
   const [genericRate, setGenericRate] = useState(String(rate.genericRate));
   const [dndRate, setDndRate] = useState(String(rate.dndRate));
 
-  const recipients = useMemo(() => {
-    if (target === 'all') return 1284;
-    return manual.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).length;
-  }, [target, manual]);
+  useEffect(() => {
+    refreshUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!senderId && activeSenderIds.length > 0) setSenderId(activeSenderIds[0].name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSenderIds.length]);
+
+  const manualNumbers = manual.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+  const recipients = target === 'all' ? users.length : manualNumbers.length;
 
   const segments = countSegments(message);
   const estimatedCost = recipients * segments * (channel === 'dnd' ? rate.dndRate : rate.genericRate);
 
-  const send = () => {
-    if (recipients === 0) return;
-    sendCampaign({ senderId: 'BULKSMS', channel, message, recipients });
-    setSuccess(true);
-    setMessage('');
-    setManual('');
+  const send = async () => {
+    if (recipients === 0 || !senderId) return;
+    setError('');
+    setSending(true);
+    const result = await sendCampaign({
+      senderId,
+      channel,
+      message,
+      manualNumbers: target === 'custom' ? manualNumbers : undefined,
+      recipientCount: target === 'all' ? recipients : undefined,
+    });
+    setSending(false);
+    if (result.ok) {
+      setSuccess(true);
+      setMessage('');
+      setManual('');
+    } else {
+      setError(result.error);
+    }
   };
 
-  const saveRate = () => {
-    setRate({ genericRate: parseFloat(genericRate) || rate.genericRate, dndRate: parseFloat(dndRate) || rate.dndRate });
+  const saveRate = async () => {
+    await setRate({ genericRate: parseFloat(genericRate) || rate.genericRate, dndRate: parseFloat(dndRate) || rate.dndRate });
   };
 
   return (
@@ -57,12 +82,22 @@ export default function AdminSendPage() {
         </div>
       </div>
 
+      {activeSenderIds.length === 0 && (
+        <div className="mb-4 max-w-3xl rounded-lg bg-warning/10 px-3.5 py-3 text-sm font-semibold text-warning">
+          No active Sender ID on the platform yet — an admin send needs one that Termii has already approved.
+        </div>
+      )}
+
       <div className="grid max-w-4xl grid-cols-[1.4fr_1fr] gap-6">
         <div className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-7">
           <div>
             <div className="mb-2 text-xs font-bold text-muted">SENDER ID</div>
-            <select className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-sm font-semibold text-ink">
-              <option>BULKSMS (platform default)</option>
+            <select value={senderId} onChange={(e) => setSenderId(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-sm font-semibold text-ink">
+              {activeSenderIds.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -94,7 +129,7 @@ export default function AdminSendPage() {
             <div className="mb-2 text-xs font-bold text-muted">TARGET</div>
             <div className="mb-3 flex gap-2">
               <button onClick={() => setTarget('all')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'all' ? 'bg-accentSoft text-accent' : ''}`}>
-                All users (1,284)
+                All users ({users.length.toLocaleString()})
               </button>
               <button onClick={() => setTarget('custom')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'custom' ? 'bg-accentSoft text-accent' : ''}`}>
                 Custom list
@@ -120,8 +155,9 @@ export default function AdminSendPage() {
             <div className="mb-1.5 text-xs font-bold text-muted">ESTIMATED COST (tracked, not charged)</div>
             <div className="text-2xl font-extrabold text-accent">{formatNaira(estimatedCost)}</div>
           </div>
-          <button onClick={send} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white">
-            Send campaign
+          {error && <div className="mb-3 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
+          <button onClick={send} disabled={sending || activeSenderIds.length === 0} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-60">
+            {sending ? 'Sending...' : 'Send campaign'}
           </button>
           {success && <div className="mt-3.5 rounded-lg bg-accentSoft px-3 py-2.5 text-xs font-semibold text-accent">Campaign sent and logged.</div>}
         </div>
