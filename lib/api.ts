@@ -76,6 +76,7 @@ export interface ApiContactGroup {
 export interface ApiSenderID {
   id: number;
   name: string;
+  provider: 'termii' | 'sendchamp' | 'kudisms';
   platform_status: 'active' | 'pending' | 'blocked';
   termii_dnd_whitelisted: boolean;
   // Null for the shared, no-approval-needed sender IDs (synthetic
@@ -96,7 +97,7 @@ export interface ApiSMSLog {
 export interface ApiCampaign {
   id: number;
   is_admin_campaign: boolean;
-  provider: 'termii' | 'sendchamp';
+  provider: 'termii' | 'sendchamp' | 'kudisms';
   sender_id: string;
   message: string;
   channel: 'generic' | 'dnd';
@@ -188,6 +189,15 @@ export const api = {
     request<ApiSenderID>(`/api/admin/sender-ids/${id}/`, {
       method: 'PATCH',
       body: JSON.stringify({ termii_dnd_whitelisted: whitelisted }),
+    }),
+  // For a sendchamp/kudisms request: Admin submits the name on that
+  // provider's own dashboard directly (no request/status API for either
+  // exists), then calls this once it's confirmed there to mark it active
+  // — from that point it's usable only by the user who requested it.
+  adminApproveSenderId: (id: number, provider: 'sendchamp' | 'kudisms') =>
+    request<ApiSenderID>(`/api/admin/sender-ids/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ provider, platform_status: 'active' }),
     }),
   adminGetRate: () => request<ApiRate>('/api/admin/rate/'),
   adminSetRate: (payload: { generic_rate: string; dnd_rate: string }) =>

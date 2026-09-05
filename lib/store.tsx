@@ -39,6 +39,7 @@ function mapSenderId(s: ApiSenderID): SenderId {
   return {
     id: s.id,
     name: s.name,
+    provider: s.provider,
     status: s.platform_status,
     dndWhitelisted: s.termii_dnd_whitelisted,
     createdAt: s.created_at ?? '',
@@ -338,6 +339,10 @@ interface AdminStoreValue {
   logout: () => void;
   refreshSenderIds: () => Promise<void>;
   setDndWhitelisted: (id: number, whitelisted: boolean) => Promise<void>;
+  /** Marks a pending request active under sendchamp/kudisms — for after
+   *  Admin has submitted the name on that provider's own dashboard by
+   *  hand and confirmed it's approved there. */
+  approveSenderId: (id: number, provider: 'sendchamp' | 'kudisms') => Promise<Result>;
   refreshUsers: () => Promise<void>;
   adjustUserBalance: (userId: number, amount: number, direction: 'credit' | 'debit', reason: string) => Promise<Result>;
   setRate: (rate: PlatformRate) => Promise<Result>;
@@ -427,6 +432,16 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     setSenderIds((s) => s.map((x) => (x.id === id ? updated : x)));
   };
 
+  const approveSenderId: AdminStoreValue['approveSenderId'] = async (id, provider) => {
+    try {
+      const updated = mapSenderId(await api.adminApproveSenderId(id, provider));
+      setSenderIds((s) => s.map((x) => (x.id === id ? updated : x)));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
   const adjustUserBalance: AdminStoreValue['adjustUserBalance'] = async (userId, amount, direction, reason) => {
     try {
       await api.adminAdjustWallet(userId, String(amount), direction, reason);
@@ -466,7 +481,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AdminStoreValue>(
     () => ({
       authed, authChecked, dataLoaded, rate, senderIds, users, adminCampaigns, allCampaigns,
-      login, logout, refreshSenderIds, setDndWhitelisted, refreshUsers, adjustUserBalance, setRate,
+      login, logout, refreshSenderIds, setDndWhitelisted, approveSenderId, refreshUsers, adjustUserBalance, setRate,
       refreshAdminCampaigns, refreshAllCampaigns, sendCampaign,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

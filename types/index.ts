@@ -1,8 +1,11 @@
 export type SenderIdStatus = 'active' | 'pending' | 'blocked';
 
+export type SmsProvider = 'termii' | 'sendchamp' | 'kudisms';
+
 export interface SenderId {
   id: number;
   name: string;
+  provider: SmsProvider;
   status: SenderIdStatus;
   dndWhitelisted: boolean;
   createdAt: string;
@@ -42,7 +45,7 @@ export interface Campaign {
   failed: number;
   status: CampaignStatus;
   isAdminCampaign: boolean;
-  provider: 'termii' | 'sendchamp';
+  provider: SmsProvider;
   createdAt: string;
 }
 
