@@ -6,13 +6,16 @@ import { useToast } from '@/lib/toast';
 import { ButtonSpinner } from '@/components/Loader';
 
 export default function ContactsPage() {
-  const { groups, uploadCsv } = useUserStore();
+  const { groups, uploadCsv, createGroup, addContact } = useUserStore();
   const toast = useToast();
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [newGroupName, setNewGroupName] = useState('');
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [contactForms, setContactForms] = useState<Record<number, { firstName: string; lastName: string; phone: string }>>({});
+  const [addingContactTo, setAddingContactTo] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggle = (id: number) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
@@ -36,6 +39,46 @@ export default function ContactsPage() {
     e.target.value = '';
   };
 
+  const handleCreateGroup = async () => {
+    const name = newGroupName.trim();
+    if (!name) {
+      toast.error('Enter a group name first.');
+      return;
+    }
+    setCreatingGroup(true);
+    try {
+      await createGroup(name);
+      setNewGroupName('');
+      toast.success(`"${name}" created.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not create that group.');
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  const contactForm = (groupId: number) => contactForms[groupId] ?? { firstName: '', lastName: '', phone: '' };
+  const setContactForm = (groupId: number, patch: Partial<{ firstName: string; lastName: string; phone: string }>) =>
+    setContactForms((f) => ({ ...f, [groupId]: { ...contactForm(groupId), ...patch } }));
+
+  const handleAddContact = async (groupId: number) => {
+    const form = contactForm(groupId);
+    if (!form.phone.trim()) {
+      toast.error('Enter a phone number first.');
+      return;
+    }
+    setAddingContactTo(groupId);
+    try {
+      await addContact(groupId, form);
+      setContactForms((f) => ({ ...f, [groupId]: { firstName: '', lastName: '', phone: '' } }));
+      toast.success('Contact added.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not add that contact.');
+    } finally {
+      setAddingContactTo(null);
+    }
+  };
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -44,9 +87,17 @@ export default function ContactsPage() {
           <input
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
-            placeholder="Group name (optional)"
+            placeholder="Group name"
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink"
           />
+          <button
+            onClick={handleCreateGroup}
+            disabled={creatingGroup}
+            className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-bold text-ink disabled:opacity-60"
+          >
+            {creatingGroup && <ButtonSpinner />}
+            {creatingGroup ? 'Creating...' : 'Create group'}
+          </button>
           <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileChange} className="hidden" />
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -64,7 +115,9 @@ export default function ContactsPage() {
       <p className="mb-4 text-xs text-muted">CSV columns: phone_number, first_name (optional), last_name (optional).</p>
 
       <div className="flex flex-col gap-3">
-        {groups.length === 0 && <div className="text-sm text-muted">No contact groups yet — upload a CSV to create one.</div>}
+        {groups.length === 0 && (
+          <div className="text-sm text-muted">No contact groups yet — create one or upload a CSV.</div>
+        )}
         {groups.map((g) => (
           <div key={g.id} className="overflow-hidden rounded-xl border border-border bg-surface">
             <button onClick={() => toggle(g.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
@@ -85,6 +138,34 @@ export default function ContactsPage() {
                   </div>
                 ))}
                 {g.contacts.length === 0 && <div className="px-5 py-3 text-sm text-muted">No contacts in this group yet.</div>}
+                <div className="flex flex-wrap items-center gap-2 border-t border-border bg-bg/40 px-5 py-3">
+                  <input
+                    value={contactForm(g.id).firstName}
+                    onChange={(e) => setContactForm(g.id, { firstName: e.target.value })}
+                    placeholder="First name"
+                    className="w-28 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
+                  />
+                  <input
+                    value={contactForm(g.id).lastName}
+                    onChange={(e) => setContactForm(g.id, { lastName: e.target.value })}
+                    placeholder="Last name"
+                    className="w-28 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
+                  />
+                  <input
+                    value={contactForm(g.id).phone}
+                    onChange={(e) => setContactForm(g.id, { phone: e.target.value })}
+                    placeholder="Phone number"
+                    className="w-36 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
+                  />
+                  <button
+                    onClick={() => handleAddContact(g.id)}
+                    disabled={addingContactTo === g.id}
+                    className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                  >
+                    {addingContactTo === g.id && <ButtonSpinner />}
+                    {addingContactTo === g.id ? 'Adding...' : 'Add contact'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
