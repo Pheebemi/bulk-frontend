@@ -2,19 +2,26 @@ export type SenderIdStatus = 'active' | 'pending' | 'blocked';
 
 export type SmsProvider = 'termii' | 'sendchamp' | 'kudisms';
 
+export type SenderIdVisibility = 'private' | 'shared' | 'admin_only';
+
 export interface SenderId {
   id: number;
   name: string;
   /** Admin-only — absent for the customer's own view of their requests. */
   useCase?: string;
+  /** Admin-only — absent from the customer-facing list (which only ever
+   *  contains their own private rows plus every shared one anyway). */
+  visibility?: SenderIdVisibility;
   provider: SmsProvider;
   status: SenderIdStatus;
   dndWhitelisted: boolean;
   createdAt: string;
   userEmail?: string;
-  /** True for the shared, no-approval-needed sender IDs (see backend
-   *  DEFAULT_SENDER_IDS) — synthetic entries, not the caller's own. */
+  /** True when visibility === 'shared' — every customer can send from it. */
   isShared: boolean;
+  /** True when visibility === 'admin_only' — only the admin console's own
+   *  sends can use it; never present in the customer-facing list at all. */
+  isAdminOnly?: boolean;
 }
 
 export interface Contact {

@@ -18,6 +18,9 @@ import type {
   ContactGroup,
   PlatformRate,
   SenderId,
+  SenderIdStatus,
+  SenderIdVisibility,
+  SmsProvider,
 } from '@/types';
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -40,12 +43,14 @@ function mapSenderId(s: ApiSenderID): SenderId {
     id: s.id,
     name: s.name,
     useCase: s.use_case,
+    visibility: s.visibility,
     provider: s.provider,
     status: s.platform_status,
     dndWhitelisted: s.termii_dnd_whitelisted,
     createdAt: s.created_at ?? '',
     userEmail: s.user_email,
     isShared: s.is_shared,
+    isAdminOnly: s.is_admin_only,
   };
 }
 
@@ -339,11 +344,31 @@ interface AdminStoreValue {
   login: (email: string, password: string) => Promise<Result>;
   logout: () => void;
   refreshSenderIds: () => Promise<void>;
-  setDndWhitelisted: (id: number, whitelisted: boolean) => Promise<void>;
-  /** Marks a pending request active under sendchamp/kudisms — for after
-   *  Admin has submitted the name on that provider's own dashboard by
-   *  hand and confirmed it's approved there. */
-  approveSenderId: (id: number, provider: 'sendchamp' | 'kudisms') => Promise<Result>;
+  /** Adds a new row directly — a shared or admin-only pool entry, or a
+   *  private one on a customer's behalf (user_email required for that
+   *  case). This is how the shared/admin-only pools grow now, instead of
+   *  a code change to a hardcoded list. */
+  createSenderId: (payload: {
+    name: string;
+    visibility: SenderIdVisibility;
+    provider: SmsProvider;
+    platformStatus?: SenderIdStatus;
+    userEmail?: string;
+  }) => Promise<Result>;
+  /** Edits any field on an existing row — provider, status, DND
+   *  whitelisting, visibility, even reassigning the owning customer. */
+  updateSenderId: (
+    id: number,
+    patch: Partial<{
+      name: string;
+      visibility: SenderIdVisibility;
+      provider: SmsProvider;
+      platformStatus: SenderIdStatus;
+      dndWhitelisted: boolean;
+      userEmail: string | null;
+    }>,
+  ) => Promise<Result>;
+  deleteSenderId: (id: number) => Promise<Result>;
   refreshUsers: () => Promise<void>;
   adjustUserBalance: (userId: number, amount: number, direction: 'credit' | 'debit', reason: string) => Promise<Result>;
   setRate: (rate: PlatformRate) => Promise<Result>;
@@ -428,15 +453,47 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const refreshAdminCampaigns = async () => setAdminCampaigns((await api.adminListCampaigns()).map(mapCampaign));
   const refreshAllCampaigns = async () => setAllCampaigns((await api.adminListAllCampaigns()).map(mapAdminCampaign));
 
-  const setDndWhitelisted: AdminStoreValue['setDndWhitelisted'] = async (id, whitelisted) => {
-    const updated = mapSenderId(await api.adminSetDndWhitelisted(id, whitelisted));
-    setSenderIds((s) => s.map((x) => (x.id === id ? updated : x)));
+  const createSenderId: AdminStoreValue['createSenderId'] = async ({ name, visibility, provider, platformStatus, userEmail }) => {
+    try {
+      const created = mapSenderId(
+        await api.adminCreateSenderId({
+          name,
+          visibility,
+          provider,
+          platform_status: platformStatus,
+          user_email: userEmail,
+        }),
+      );
+      setSenderIds((s) => [created, ...s]);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
   };
 
-  const approveSenderId: AdminStoreValue['approveSenderId'] = async (id, provider) => {
+  const updateSenderId: AdminStoreValue['updateSenderId'] = async (id, patch) => {
     try {
-      const updated = mapSenderId(await api.adminApproveSenderId(id, provider));
+      const updated = mapSenderId(
+        await api.adminUpdateSenderId(id, {
+          name: patch.name,
+          visibility: patch.visibility,
+          provider: patch.provider,
+          platform_status: patch.platformStatus,
+          termii_dnd_whitelisted: patch.dndWhitelisted,
+          user_email: patch.userEmail,
+        }),
+      );
       setSenderIds((s) => s.map((x) => (x.id === id ? updated : x)));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const deleteSenderId: AdminStoreValue['deleteSenderId'] = async (id) => {
+    try {
+      await api.adminDeleteSenderId(id);
+      setSenderIds((s) => s.filter((x) => x.id !== id));
       return { ok: true };
     } catch (e) {
       return { ok: false, error: errorMessage(e) };
@@ -482,7 +539,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AdminStoreValue>(
     () => ({
       authed, authChecked, dataLoaded, rate, senderIds, users, adminCampaigns, allCampaigns,
-      login, logout, refreshSenderIds, setDndWhitelisted, approveSenderId, refreshUsers, adjustUserBalance, setRate,
+      login, logout, refreshSenderIds, createSenderId, updateSenderId, deleteSenderId, refreshUsers, adjustUserBalance, setRate,
       refreshAdminCampaigns, refreshAllCampaigns, sendCampaign,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

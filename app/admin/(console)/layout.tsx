@@ -32,7 +32,7 @@ export default function AdminConsoleLayout({ children }: { children: React.React
 
   const navItems: NavItem[] = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: DashboardIcon },
-    { href: '/admin/approvals', label: 'Sender ID approvals', icon: SenderIdIcon, badgeCount: pendingCount },
+    { href: '/admin/approvals', label: 'Sender IDs', icon: SenderIdIcon, badgeCount: pendingCount },
     { href: '/admin/campaigns', label: 'Campaigns', icon: CampaignIcon, badgeCount: failedCampaignCount },
     { href: '/admin/wallets', label: 'User wallets', icon: WalletIcon },
     { href: '/admin/send', label: 'Send campaign', icon: CampaignIcon },

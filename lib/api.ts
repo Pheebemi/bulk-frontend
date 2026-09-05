@@ -80,6 +80,8 @@ export interface ApiSenderID {
   // on whichever provider's dashboard. Absent from the customer-facing
   // GET /api/sender-ids/ response.
   use_case?: string;
+  // Admin-only too — the customer-facing list never includes this field.
+  visibility?: 'private' | 'shared' | 'admin_only';
   provider: 'termii' | 'sendchamp' | 'kudisms';
   platform_status: 'active' | 'pending' | 'blocked';
   termii_dnd_whitelisted: boolean;
@@ -88,6 +90,7 @@ export interface ApiSenderID {
   created_at: string | null;
   user_email?: string;
   is_shared: boolean;
+  is_admin_only?: boolean;
 }
 
 export interface ApiSMSLog {
@@ -187,22 +190,31 @@ export const api = {
       body: JSON.stringify({ transaction_id, tx_ref }),
     }),
 
-  // Admin
+  // Admin — full CRUD: every Sender ID row (private/shared/admin_only
+  // alike), whoever it belongs to. Create is how Admin adds a new shared
+  // or admin-only pool entry, or a private one on a customer's behalf,
+  // directly — no code change needed the way DEFAULT_SENDER_IDS/
+  // ADMIN_ONLY_SENDER_IDS used to require.
   adminListSenderIds: () => request<ApiSenderID[]>('/api/admin/sender-ids/'),
-  adminSetDndWhitelisted: (id: number, whitelisted: boolean) =>
-    request<ApiSenderID>(`/api/admin/sender-ids/${id}/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ termii_dnd_whitelisted: whitelisted }),
-    }),
-  // For a sendchamp/kudisms request: Admin submits the name on that
-  // provider's own dashboard directly (no request/status API for either
-  // exists), then calls this once it's confirmed there to mark it active
-  // — from that point it's usable only by the user who requested it.
-  adminApproveSenderId: (id: number, provider: 'sendchamp' | 'kudisms') =>
-    request<ApiSenderID>(`/api/admin/sender-ids/${id}/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ provider, platform_status: 'active' }),
-    }),
+  adminCreateSenderId: (payload: {
+    name: string;
+    visibility: 'private' | 'shared' | 'admin_only';
+    provider: 'termii' | 'sendchamp' | 'kudisms';
+    platform_status?: 'active' | 'pending' | 'blocked';
+    user_email?: string;
+  }) => request<ApiSenderID>('/api/admin/sender-ids/', { method: 'POST', body: JSON.stringify(payload) }),
+  adminUpdateSenderId: (
+    id: number,
+    payload: Partial<{
+      name: string;
+      visibility: 'private' | 'shared' | 'admin_only';
+      provider: 'termii' | 'sendchamp' | 'kudisms';
+      platform_status: 'active' | 'pending' | 'blocked';
+      termii_dnd_whitelisted: boolean;
+      user_email: string | null;
+    }>,
+  ) => request<ApiSenderID>(`/api/admin/sender-ids/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  adminDeleteSenderId: (id: number) => request<void>(`/api/admin/sender-ids/${id}/`, { method: 'DELETE' }),
   adminGetRate: () => request<ApiRate>('/api/admin/rate/'),
   adminSetRate: (payload: { generic_rate: string; dnd_rate: string }) =>
     request<ApiRate>('/api/admin/rate/', { method: 'PUT', body: JSON.stringify(payload) }),
