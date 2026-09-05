@@ -78,8 +78,11 @@ export interface ApiSenderID {
   name: string;
   platform_status: 'active' | 'pending' | 'blocked';
   termii_dnd_whitelisted: boolean;
-  created_at: string;
+  // Null for the shared, no-approval-needed sender IDs (synthetic
+  // entries — not a stored row, so there's no creation date).
+  created_at: string | null;
   user_email?: string;
+  is_shared: boolean;
 }
 
 export interface ApiSMSLog {

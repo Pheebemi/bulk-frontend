@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import { formatNaira, countSegments } from '@/lib/money';
@@ -10,8 +11,21 @@ export default function NewCampaignPage() {
   const { senderIds, groups, wallet, rate, createCampaign } = useUserStore();
   const router = useRouter();
 
-  const activeSenderIds = senderIds.filter((s) => s.status === 'active');
-  const [senderId, setSenderId] = useState(activeSenderIds[0]?.name ?? '');
+  // Only ever offer names that can actually send right now: the caller's
+  // own approved sender IDs, and the shared ones every account can use
+  // immediately. Pending/blocked ones are never selectable here — that's
+  // what the Sender IDs page is for.
+  const ownSenderIds = senderIds.filter((s) => !s.isShared && s.status === 'active');
+  const sharedSenderIds = senderIds.filter((s) => s.isShared);
+  const sendableSenderIds = [...ownSenderIds, ...sharedSenderIds];
+
+  const [senderId, setSenderId] = useState('');
+  // The list loads asynchronously (the store hydrates from the API), so
+  // the default selection is set once real data arrives rather than at
+  // the empty initial render.
+  useEffect(() => {
+    if (!senderId && sendableSenderIds.length > 0) setSenderId(sendableSenderIds[0].name);
+  }, [senderId, sendableSenderIds]);
   const [channel, setChannel] = useState<CampaignChannel>('dnd');
   const [message, setMessage] = useState('');
   const [source, setSource] = useState<'group' | 'manual'>('group');
@@ -53,22 +67,44 @@ export default function NewCampaignPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">New campaign</h1>
-      {activeSenderIds.length === 0 && (
-        <div className="mb-4 max-w-2xl rounded-lg bg-warning/10 px-3.5 py-3 text-sm font-semibold text-warning">
-          You have no active Sender ID yet — requests are reviewed by Termii before they can send.
-        </div>
-      )}
       <div className="grid max-w-4xl grid-cols-[1.4fr_1fr] gap-6">
         <div className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-7">
           <div>
             <div className="mb-2 text-xs font-bold text-muted">SENDER ID</div>
             <select value={senderId} onChange={(e) => setSenderId(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-sm font-semibold text-ink">
-              {activeSenderIds.map((s) => (
-                <option key={s.id} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
+              {ownSenderIds.length > 0 ? (
+                <>
+                  <optgroup label="Your sender IDs">
+                    {ownSenderIds.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Instant — send now">
+                    {sharedSenderIds.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </>
+              ) : (
+                sharedSenderIds.map((s) => (
+                  <option key={s.id} value={s.name}>
+                    {s.name}
+                  </option>
+                ))
+              )}
             </select>
+            {ownSenderIds.length === 0 && (
+              <p className="mt-2 text-xs text-muted">
+                Messages send under a shared name until you have your own.{' '}
+                <Link href="/sender-ids" className="font-semibold text-accent">
+                  Request a custom sender ID →
+                </Link>
+              </p>
+            )}
           </div>
 
           <div>
@@ -138,7 +174,7 @@ export default function NewCampaignPage() {
           </div>
           <div className="mb-4 text-xs text-muted">Wallet balance after send: {formatNaira(wallet - estimatedCost)}</div>
           {error && <div className="mb-4 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
-          <button onClick={send} disabled={activeSenderIds.length === 0 || sending} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-50">
+          <button onClick={send} disabled={sendableSenderIds.length === 0 || sending} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-50">
             {sending ? 'Sending...' : 'Send campaign'}
           </button>
         </div>

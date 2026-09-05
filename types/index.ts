@@ -7,6 +7,9 @@ export interface SenderId {
   dndWhitelisted: boolean;
   createdAt: string;
   userEmail?: string;
+  /** True for the shared, no-approval-needed sender IDs (see backend
+   *  DEFAULT_SENDER_IDS) — synthetic entries, not the caller's own. */
+  isShared: boolean;
 }
 
 export interface Contact {

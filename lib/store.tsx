@@ -39,8 +39,9 @@ function mapSenderId(s: ApiSenderID): SenderId {
     name: s.name,
     status: s.platform_status,
     dndWhitelisted: s.termii_dnd_whitelisted,
-    createdAt: s.created_at,
+    createdAt: s.created_at ?? '',
     userEmail: s.user_email,
+    isShared: s.is_shared,
   };
 }
 
