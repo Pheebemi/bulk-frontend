@@ -85,10 +85,6 @@ const faqs = [
     q: 'What happens if a send fails partway through?',
     a: 'You are only charged for the messages that actually went out. If a campaign stops halfway, the recipients who were never sent to are refunded to your wallet automatically and the campaign is marked as partially delivered.',
   },
-  {
-    q: 'Do you have an API?',
-    a: 'Yes. Everything in the dashboard — contacts, campaigns, sender IDs and wallet balance — is available over a REST API with token authentication, so you can trigger messages from your own systems.',
-  },
 ];
 
 const checklist = [
@@ -278,58 +274,6 @@ export default function LandingPage() {
             title="Everything you need to run a campaign"
           />
           <FeatureTabs features={features} />
-        </div>
-      </section>
-
-      {/* ---- API ---- */}
-      <section className="border-b border-border py-20">
-        <div className="mx-auto max-w-6xl px-5">
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div>
-              <SectionHeading
-                eyebrow="Developers"
-                title="Send from your own systems"
-                blurb="Every action in the dashboard is available over a REST API with token authentication — trigger an OTP from your checkout, or a dispatch alert from your warehouse tool."
-                center={false}
-              />
-              <ul className="flex flex-col gap-3">
-                {[
-                  'Token-authenticated REST endpoints',
-                  'Send to a saved group or a list of numbers',
-                  'Delivery status per recipient',
-                  'Wallet balance and transaction history',
-                ].map((t, i) => (
-                  <li key={t} className="flex items-start gap-3 text-sm text-ink">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accentSoft text-xs font-extrabold text-accent">
-                      {i + 1}
-                    </span>
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="overflow-x-auto rounded-2xl border border-border bg-sidebar p-6">
-              <pre className="text-[12px] leading-relaxed text-slate-300">
-                <code>{`POST /api/campaigns/
-Authorization: Bearer <token>
-
-{
-  "sender_id": "PHEEDEV",
-  "channel": "dnd",
-  "message": "Your OTP is 402913.",
-  "manual_numbers": ["2348012345678"]
-}
-
-201 Created
-{
-  "status": "DELIVERED",
-  "total_recipients": 1,
-  "delivered": 1,
-  "failed": 0
-}`}</code>
-              </pre>
-            </div>
-          </div>
         </div>
       </section>
 
