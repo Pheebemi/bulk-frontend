@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAdminStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
+import { ButtonSpinner } from '@/components/Loader';
 import { formatNaira, countSegments } from '@/lib/money';
 import type { CampaignChannel } from '@/types';
 
@@ -165,7 +166,8 @@ export default function AdminSendPage() {
             <div className="text-2xl font-extrabold text-accent">{formatNaira(estimatedCost)}</div>
           </div>
           {error && <div className="mb-3 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
-          <button onClick={send} disabled={sending || activeSenderIds.length === 0} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-60">
+          <button onClick={send} disabled={sending || activeSenderIds.length === 0} className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-60">
+            {sending && <ButtonSpinner />}
             {sending ? 'Sending...' : 'Send campaign'}
           </button>
           {success && <div className="mt-3.5 rounded-lg bg-accentSoft px-3 py-2.5 text-xs font-semibold text-accent">Campaign sent and logged.</div>}

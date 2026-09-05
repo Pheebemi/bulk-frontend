@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useUserStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
+import { ButtonSpinner } from '@/components/Loader';
 import type { SenderIdStatus } from '@/types';
 
 const STATUS_STYLE: Record<SenderIdStatus, string> = {
@@ -75,7 +76,8 @@ export default function SenderIdsPage() {
           />
           <div className="mb-4 text-xs text-muted">Max 11 alphanumeric characters. Reviewed by Termii — not instant.</div>
           {error && <div className="mb-3 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
-          <button onClick={submit} disabled={submitting} className="w-full rounded-lg bg-accent py-3 text-sm font-bold text-white disabled:opacity-60">
+          <button onClick={submit} disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3 text-sm font-bold text-white disabled:opacity-60">
+            {submitting && <ButtonSpinner />}
             {submitting ? 'Submitting...' : 'Submit request'}
           </button>
         </div>

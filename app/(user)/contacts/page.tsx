@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useUserStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
+import { ButtonSpinner } from '@/components/Loader';
 
 export default function ContactsPage() {
   const { groups, uploadCsv } = useUserStore();
@@ -50,8 +51,9 @@ export default function ContactsPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
           >
+            {uploading && <ButtonSpinner />}
             {uploading ? 'Uploading...' : 'Upload CSV'}
           </button>
         </div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
+import { ButtonSpinner } from '@/components/Loader';
 import { formatNaira, countSegments } from '@/lib/money';
 import type { CampaignChannel } from '@/types';
 
@@ -178,7 +179,8 @@ export default function NewCampaignPage() {
           </div>
           <div className="mb-4 text-xs text-muted">Wallet balance after send: {formatNaira(wallet - estimatedCost)}</div>
           {error && <div className="mb-4 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
-          <button onClick={send} disabled={sendableSenderIds.length === 0 || sending} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-50">
+          <button onClick={send} disabled={sendableSenderIds.length === 0 || sending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-50">
+            {sending && <ButtonSpinner />}
             {sending ? 'Sending...' : 'Send campaign'}
           </button>
         </div>

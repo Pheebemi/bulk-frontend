@@ -87,6 +87,10 @@ function mapAdminUser(u: ApiAdminUser): AdminUser {
 interface UserStoreValue {
   authed: boolean;
   authChecked: boolean;
+  /** False until the first post-login fetch of groups/senderIds/campaigns/
+   *  rate has completed — lets pages show a loader instead of a false
+   *  "nothing here yet" while that's still in flight. */
+  dataLoaded: boolean;
   wallet: number;
   fullName: string;
   groups: ContactGroup[];
@@ -127,6 +131,7 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
   const [senderIds, setSenderIds] = useState<SenderId[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rate, setRate] = useState<PlatformRate>({ genericRate: 8, dndRate: 10 });
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   const loadAll = async () => {
     const [groupsRes, senderIdsRes, campaignsRes, rateRes] = await Promise.allSettled([
@@ -139,6 +144,9 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
     if (senderIdsRes.status === 'fulfilled') setSenderIds(senderIdsRes.value.map(mapSenderId));
     if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.map(mapCampaign));
     if (rateRes.status === 'fulfilled') setRate({ genericRate: parseFloat(rateRes.value.generic_rate), dndRate: parseFloat(rateRes.value.dnd_rate) });
+    // Set once loadAll has actually run, success or partial failure alike —
+    // Promise.allSettled never rejects, so this always fires.
+    setDataLoaded(true);
   };
 
   useEffect(() => {
@@ -198,6 +206,7 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
     setGroups([]);
     setSenderIds([]);
     setCampaigns([]);
+    setDataLoaded(false);
   };
 
   const refreshWallet = async () => {
@@ -290,12 +299,12 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<UserStoreValue>(
     () => ({
-      authed, authChecked, wallet, fullName, groups, senderIds, campaigns, rate,
+      authed, authChecked, dataLoaded, wallet, fullName, groups, senderIds, campaigns, rate,
       login, signup, logout, refreshWallet, refreshGroups, createGroup, addContact, uploadCsv,
       refreshSenderIds, requestSenderId, refreshCampaigns, createCampaign, fetchCampaign, retryCampaign, verifyPayment,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authed, authChecked, wallet, fullName, groups, senderIds, campaigns, rate],
+    [authed, authChecked, dataLoaded, wallet, fullName, groups, senderIds, campaigns, rate],
   );
 
   return <UserStoreContext.Provider value={value}>{children}</UserStoreContext.Provider>;
@@ -314,6 +323,9 @@ export function useUserStore(): UserStoreValue {
 interface AdminStoreValue {
   authed: boolean;
   authChecked: boolean;
+  /** Same purpose as UserStoreValue.dataLoaded — false until the first
+   *  post-login fetch of rate/senderIds/users/campaigns has completed. */
+  dataLoaded: boolean;
   rate: PlatformRate;
   senderIds: SenderId[];
   users: AdminUser[];
@@ -350,6 +362,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [adminCampaigns, setAdminCampaigns] = useState<Campaign[]>([]);
   const [allCampaigns, setAllCampaigns] = useState<AdminCampaign[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   const loadAll = async () => {
     const [rateRes, sidRes, usersRes, campaignsRes, allCampaignsRes] = await Promise.allSettled([
@@ -364,6 +377,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     if (usersRes.status === 'fulfilled') setUsers(usersRes.value.map(mapAdminUser));
     if (campaignsRes.status === 'fulfilled') setAdminCampaigns(campaignsRes.value.map(mapCampaign));
     if (allCampaignsRes.status === 'fulfilled') setAllCampaigns(allCampaignsRes.value.map(mapAdminCampaign));
+    setDataLoaded(true);
   };
 
   useEffect(() => {
@@ -400,6 +414,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     localStorage.removeItem('adminAuthToken');
     setAuthed(false);
+    setDataLoaded(false);
   };
 
   const refreshSenderIds = async () => setSenderIds((await api.adminListSenderIds()).map(mapSenderId));
@@ -450,12 +465,12 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AdminStoreValue>(
     () => ({
-      authed, authChecked, rate, senderIds, users, adminCampaigns, allCampaigns,
+      authed, authChecked, dataLoaded, rate, senderIds, users, adminCampaigns, allCampaigns,
       login, logout, refreshSenderIds, setDndWhitelisted, refreshUsers, adjustUserBalance, setRate,
       refreshAdminCampaigns, refreshAllCampaigns, sendCampaign,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authed, authChecked, rate, senderIds, users, adminCampaigns, allCampaigns],
+    [authed, authChecked, dataLoaded, rate, senderIds, users, adminCampaigns, allCampaigns],
   );
 
   return <AdminStoreContext.Provider value={value}>{children}</AdminStoreContext.Provider>;

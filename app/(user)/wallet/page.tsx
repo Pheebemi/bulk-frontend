@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
 import { useUserStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
+import { ButtonSpinner } from '@/components/Loader';
 import { formatNaira } from '@/lib/money';
 
 const PRESETS = [5000, 10000, 20000, 50000];
@@ -89,7 +90,8 @@ export default function WalletPage() {
               </button>
             ))}
           </div>
-          <button onClick={pay} disabled={verifying} className="w-full rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-60">
+          <button onClick={pay} disabled={verifying} className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3.5 text-sm font-bold text-white disabled:opacity-60">
+            {verifying && <ButtonSpinner />}
             {verifying ? 'Verifying payment...' : 'Pay with Flutterwave'}
           </button>
           {success && (

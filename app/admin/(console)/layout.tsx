@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { AppShell, NavItem } from '@/components/AppShell';
 import { useAdminStore } from '@/lib/store';
 import { DashboardIcon, SenderIdIcon, WalletIcon, CampaignIcon } from '@/components/icons';
+import { PageLoader } from '@/components/Loader';
 
 export default function AdminConsoleLayout({ children }: { children: React.ReactNode }) {
-  const { authed, authChecked, senderIds, allCampaigns, refreshAllCampaigns, logout } = useAdminStore();
+  const { authed, authChecked, dataLoaded, senderIds, allCampaigns, refreshAllCampaigns, logout } = useAdminStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -22,8 +23,9 @@ export default function AdminConsoleLayout({ children }: { children: React.React
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  if (!authChecked) return null;
-  if (!authed) return null;
+  if (!authChecked) return <PageLoader />;
+  if (!authed) return <PageLoader />;
+  if (!dataLoaded) return <PageLoader label="Loading the admin console…" />;
 
   const pendingCount = senderIds.filter((s) => s.status === 'pending' && !s.isShared).length;
   const failedCampaignCount = allCampaigns.filter((c) => c.status === 'FAILED' || c.status === 'PARTIAL').length;

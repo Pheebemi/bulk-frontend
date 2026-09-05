@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAdminStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
+import { ButtonSpinner } from '@/components/Loader';
 import { formatNaira } from '@/lib/money';
 
 export default function AdminWalletsPage() {
@@ -100,10 +101,12 @@ export default function AdminWalletsPage() {
               />
               {error && <div className="mb-3 rounded-lg bg-danger/10 px-3 py-2.5 text-xs font-semibold text-danger">{error}</div>}
               <div className="flex gap-2.5">
-                <button onClick={() => apply('credit')} disabled={busy} className="flex-1 rounded-lg bg-success py-2.5 text-sm font-bold text-white disabled:opacity-60">
+                <button onClick={() => apply('credit')} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-success py-2.5 text-sm font-bold text-white disabled:opacity-60">
+                  {busy && <ButtonSpinner />}
                   Credit
                 </button>
-                <button onClick={() => apply('debit')} disabled={busy} className="flex-1 rounded-lg bg-danger py-2.5 text-sm font-bold text-white disabled:opacity-60">
+                <button onClick={() => apply('debit')} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-danger py-2.5 text-sm font-bold text-white disabled:opacity-60">
+                  {busy && <ButtonSpinner />}
                   Debit
                 </button>
               </div>

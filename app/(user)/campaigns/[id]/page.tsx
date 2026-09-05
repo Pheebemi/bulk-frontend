@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
 import { formatNaira } from '@/lib/money';
+import { SectionLoader } from '@/components/Loader';
 
 export default function CampaignReportPage() {
   const params = useParams<{ id: string }>();
@@ -41,7 +42,7 @@ export default function CampaignReportPage() {
         <Link href="/dashboard" className="text-sm font-semibold text-muted">
           &larr; Back to dashboard
         </Link>
-        <p className="mt-4 text-sm text-muted">Loading campaign...</p>
+        <SectionLoader label="Loading campaign…" />
       </div>
     );
   }
