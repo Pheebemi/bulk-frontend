@@ -170,6 +170,22 @@ export interface ApiAdminUser {
   history: ApiWalletHistoryEntry[];
 }
 
+export interface ApiAdminAnalytics {
+  admin_spend: string;
+  admin_recipients: number;
+  user_spend: string;
+  user_recipients: number;
+}
+
+export interface ApiUserSpend {
+  id: number;
+  full_name: string;
+  email: string;
+  total_spent: string;
+  campaigns_count: number;
+  recipients_total: number;
+}
+
 export const api = {
   signup: (payload: { email: string; password: string; full_name: string; phone_number?: string }) =>
     request<AuthResponse>('/api/auth/signup/', { method: 'POST', body: JSON.stringify(payload) }),
@@ -254,6 +270,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ amount, direction, reason }),
     }),
+  adminGetAnalytics: () => request<ApiAdminAnalytics>('/api/admin/analytics/'),
+  adminListUserSpend: (page = 1) => request<ApiPage<ApiUserSpend>>(`/api/admin/analytics/users/?page=${page}`),
   adminListCampaigns: (page = 1) => request<ApiPage<ApiCampaign>>(`/api/admin/campaigns/?page=${page}`),
   adminCreateCampaign: (payload: {
     sender_id: string;

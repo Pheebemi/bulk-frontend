@@ -42,6 +42,15 @@ export const WalletIcon = (p: IconProps) =>
 
 export const SenderIdIcon = (p: IconProps) => base(<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></>, p);
 
+export const AnalyticsIcon = (p: IconProps) =>
+  base(
+    <>
+      <path d="M3 3v18h18" />
+      <path d="M18.7 8 13 13.7l-3-3L4 16.6" />
+    </>,
+    p,
+  );
+
 export const LogoutIcon = (p: IconProps) =>
   base(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></>, p);
 

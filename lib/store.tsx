@@ -11,8 +11,10 @@ import {
   ApiSenderID,
   ApiAdminUser,
   ApiUser,
+  ApiUserSpend,
 } from '@/lib/api';
 import type {
+  AdminAnalytics,
   AdminCampaign,
   AdminUser,
   Campaign,
@@ -24,6 +26,7 @@ import type {
   SenderIdStatus,
   SenderIdVisibility,
   SmsProvider,
+  UserSpend,
 } from '@/types';
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -86,6 +89,17 @@ function mapAdminUser(u: ApiAdminUser): AdminUser {
     email: u.email,
     balance: parseFloat(u.balance),
     history: u.history.map((h) => ({ id: h.id, description: h.description, amount: parseFloat(h.amount), createdAt: h.created_at })),
+  };
+}
+
+function mapUserSpend(u: ApiUserSpend): UserSpend {
+  return {
+    id: u.id,
+    name: u.full_name || u.email,
+    email: u.email,
+    totalSpent: parseFloat(u.total_spent),
+    campaignsCount: u.campaigns_count,
+    recipientsTotal: u.recipients_total,
   };
 }
 
@@ -408,6 +422,14 @@ interface AdminStoreValue {
   /** Dashboard overview aggregates — real DB sums/counts, not derived
    *  from users/adminCampaigns client-side (both paginated now). */
   stats: { totalUsers: number; totalBalance: number; adminSmsSent: number };
+  /** Analytics page overview cards — admin's own tracked spend (no wallet
+   *  to charge) versus what customers actually spent from theirs. */
+  analytics: AdminAnalytics;
+  /** Per-user spend distribution behind the analytics overview, paginated
+   *  so a growing user base doesn't mean fetching every user up front. */
+  userSpend: UserSpend[];
+  userSpendHasMore: boolean;
+  userSpendTotal: number;
   login: (email: string, password: string) => Promise<Result>;
   logout: () => void;
   refreshSenderIds: () => Promise<void>;
@@ -449,6 +471,9 @@ interface AdminStoreValue {
    *  refreshUsers: server-side now that the list is paginated. */
   refreshAllCampaigns: (statusGroup?: 'failed') => Promise<void>;
   loadMoreAllCampaigns: () => Promise<void>;
+  refreshAnalytics: () => Promise<void>;
+  refreshUserSpend: () => Promise<void>;
+  loadMoreUserSpend: () => Promise<void>;
   sendCampaign: (args: {
     senderId: string;
     channel: CampaignChannel;
@@ -480,6 +505,11 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [allCampaignsHasMore, setAllCampaignsHasMore] = useState(false);
   const [allCampaignsTotal, setAllCampaignsTotal] = useState(0);
   const [stats, setStats] = useState({ totalUsers: 0, totalBalance: 0, adminSmsSent: 0 });
+  const [analytics, setAnalytics] = useState<AdminAnalytics>({ adminSpend: 0, adminRecipients: 0, userSpend: 0, userRecipients: 0 });
+  const [userSpend, setUserSpend] = useState<UserSpend[]>([]);
+  const [userSpendPage, setUserSpendPage] = useState(1);
+  const [userSpendHasMore, setUserSpendHasMore] = useState(false);
+  const [userSpendTotal, setUserSpendTotal] = useState(0);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const loadAll = async () => {
@@ -610,6 +640,32 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     setAllCampaignsHasMore(page.next !== null);
   };
 
+  const refreshAnalytics: AdminStoreValue['refreshAnalytics'] = async () => {
+    const res = await api.adminGetAnalytics();
+    setAnalytics({
+      adminSpend: parseFloat(res.admin_spend),
+      adminRecipients: res.admin_recipients,
+      userSpend: parseFloat(res.user_spend),
+      userRecipients: res.user_recipients,
+    });
+  };
+
+  const refreshUserSpend: AdminStoreValue['refreshUserSpend'] = async () => {
+    const page = await api.adminListUserSpend(1);
+    setUserSpend(page.results.map(mapUserSpend));
+    setUserSpendPage(1);
+    setUserSpendHasMore(page.next !== null);
+    setUserSpendTotal(page.count);
+  };
+
+  const loadMoreUserSpend: AdminStoreValue['loadMoreUserSpend'] = async () => {
+    const nextPage = userSpendPage + 1;
+    const page = await api.adminListUserSpend(nextPage);
+    setUserSpend((s) => [...s, ...page.results.map(mapUserSpend)]);
+    setUserSpendPage(nextPage);
+    setUserSpendHasMore(page.next !== null);
+  };
+
   const createSenderId: AdminStoreValue['createSenderId'] = async ({ name, visibility, provider, platformStatus, userEmail }) => {
     try {
       const created = mapSenderId(
@@ -699,12 +755,15 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       users, usersHasMore, usersTotal,
       adminCampaigns, adminCampaignsHasMore, adminCampaignsTotal,
       allCampaigns, allCampaignsHasMore, allCampaignsTotal, stats,
+      analytics, userSpend, userSpendHasMore, userSpendTotal,
       login, logout, refreshSenderIds, createSenderId, updateSenderId, deleteSenderId, refreshUsers, loadMoreUsers, adjustUserBalance, setRate,
-      refreshAdminCampaigns, loadMoreAdminCampaigns, refreshAllCampaigns, loadMoreAllCampaigns, sendCampaign,
+      refreshAdminCampaigns, loadMoreAdminCampaigns, refreshAllCampaigns, loadMoreAllCampaigns,
+      refreshAnalytics, refreshUserSpend, loadMoreUserSpend, sendCampaign,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [authed, authChecked, dataLoaded, rate, senderIds, users, usersHasMore, usersTotal,
-      adminCampaigns, adminCampaignsHasMore, adminCampaignsTotal, allCampaigns, allCampaignsHasMore, allCampaignsTotal, stats],
+      adminCampaigns, adminCampaignsHasMore, adminCampaignsTotal, allCampaigns, allCampaignsHasMore, allCampaignsTotal, stats,
+      analytics, userSpend, userSpendHasMore, userSpendTotal],
   );
 
   return <AdminStoreContext.Provider value={value}>{children}</AdminStoreContext.Provider>;

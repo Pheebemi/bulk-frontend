@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell, NavItem } from '@/components/AppShell';
 import { useAdminStore } from '@/lib/store';
-import { DashboardIcon, SenderIdIcon, WalletIcon, CampaignIcon } from '@/components/icons';
+import { AnalyticsIcon, DashboardIcon, SenderIdIcon, WalletIcon, CampaignIcon } from '@/components/icons';
 import { PageLoader } from '@/components/Loader';
 
 export default function AdminConsoleLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +32,7 @@ export default function AdminConsoleLayout({ children }: { children: React.React
 
   const navItems: NavItem[] = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: DashboardIcon },
+    { href: '/admin/analytics', label: 'Analytics', icon: AnalyticsIcon },
     { href: '/admin/approvals', label: 'Sender IDs', icon: SenderIdIcon, badgeCount: pendingCount },
     { href: '/admin/campaigns', label: 'Campaigns', icon: CampaignIcon, badgeCount: failedCampaignCount },
     { href: '/admin/wallets', label: 'User wallets', icon: WalletIcon },

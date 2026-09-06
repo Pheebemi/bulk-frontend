@@ -86,3 +86,23 @@ export interface PlatformRate {
   genericRate: number;
   dndRate: number;
 }
+
+/** Overview cards for the admin analytics page — admin's own platform
+ *  sends (tracked cost only, admin has no wallet to charge) versus what
+ *  customers actually spent from their wallets. */
+export interface AdminAnalytics {
+  adminSpend: number;
+  adminRecipients: number;
+  userSpend: number;
+  userRecipients: number;
+}
+
+/** One row of the analytics page's per-user spend distribution table. */
+export interface UserSpend {
+  id: number;
+  name: string;
+  email: string;
+  totalSpent: number;
+  campaignsCount: number;
+  recipientsTotal: number;
+}
