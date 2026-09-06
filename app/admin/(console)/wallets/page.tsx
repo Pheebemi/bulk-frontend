@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAdminStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
 import { ButtonSpinner } from '@/components/Loader';
 import { formatNaira } from '@/lib/money';
 
 export default function AdminWalletsPage() {
-  const { users, adjustUserBalance } = useAdminStore();
+  const { users, usersHasMore, usersTotal, adjustUserBalance, refreshUsers, loadMoreUsers } = useAdminStore();
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number>(users[0]?.id ?? 0);
@@ -15,8 +15,24 @@ export default function AdminWalletsPage() {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const filtered = users.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
+  // Search runs server-side now that the user list is paginated — a
+  // fetched page is only ever a slice of the whole table, so filtering
+  // it client-side would silently miss every match not on that page.
+  // Debounced so it doesn't refetch on every keystroke.
+  useEffect(() => {
+    const timeout = setTimeout(() => refreshUsers(query), 400);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    await loadMoreUsers();
+    setLoadingMore(false);
+  };
+
   const selected = users.find((u) => u.id === selectedId) ?? users[0];
 
   const apply = async (direction: 'credit' | 'debit') => {
@@ -48,7 +64,7 @@ export default function AdminWalletsPage() {
             className="mb-3 w-full rounded-lg border border-border bg-surface px-3 py-3 text-sm text-ink"
           />
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
-            {filtered.map((u) => (
+            {users.map((u) => (
               <button
                 key={u.id}
                 onClick={() => setSelectedId(u.id)}
@@ -63,6 +79,15 @@ export default function AdminWalletsPage() {
                 <span className="font-bold">{formatNaira(u.balance)}</span>
               </button>
             ))}
+            {usersHasMore && (
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="w-full px-4 py-3 text-center text-xs font-bold text-accent disabled:opacity-60"
+              >
+                {loadingMore ? 'Loading...' : `Load more (showing ${users.length} of ${usersTotal.toLocaleString()})`}
+              </button>
+            )}
           </div>
         </div>
 

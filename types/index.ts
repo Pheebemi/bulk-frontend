@@ -34,7 +34,9 @@ export interface Contact {
 export interface ContactGroup {
   id: number;
   name: string;
-  contacts: Contact[];
+  // No nested contact list — a group's contacts are unbounded by
+  // design and are fetched separately, paginated, only once the group
+  // is actually expanded (see useUserStore().fetchGroupContacts).
   contactCount: number;
 }
 

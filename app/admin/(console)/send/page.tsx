@@ -8,7 +8,8 @@ import { formatNaira, countSegments } from '@/lib/money';
 import type { CampaignChannel } from '@/types';
 
 export default function AdminSendPage() {
-  const { rate, setRate, senderIds, users, adminCampaigns, sendCampaign, refreshUsers } = useAdminStore();
+  const { rate, setRate, senderIds, usersTotal, adminCampaigns, adminCampaignsHasMore, loadMoreAdminCampaigns, sendCampaign, refreshUsers } = useAdminStore();
+  const [loadingMore, setLoadingMore] = useState(false);
   const toast = useToast();
   const activeSenderIds = senderIds.filter((s) => s.status === 'active');
   const [senderId, setSenderId] = useState('');
@@ -33,7 +34,10 @@ export default function AdminSendPage() {
   }, [activeSenderIds.length]);
 
   const manualNumbers = manual.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
-  const recipients = target === 'all' ? users.length : manualNumbers.length;
+  // usersTotal, not users.length — the user list is paginated now, so
+  // users.length is only how many are loaded, not the real "send to
+  // everyone" recipient count.
+  const recipients = target === 'all' ? usersTotal : manualNumbers.length;
 
   const segments = countSegments(message);
   const estimatedCost = recipients * segments * (channel === 'dnd' ? rate.dndRate : rate.genericRate);
@@ -139,7 +143,7 @@ export default function AdminSendPage() {
             <div className="mb-2 text-xs font-bold text-muted">TARGET</div>
             <div className="mb-3 flex gap-2">
               <button onClick={() => setTarget('all')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'all' ? 'bg-accentSoft text-accent' : ''}`}>
-                All users ({users.length.toLocaleString()})
+                All users ({usersTotal.toLocaleString()})
               </button>
               <button onClick={() => setTarget('custom')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'custom' ? 'bg-accentSoft text-accent' : ''}`}>
                 Custom list
@@ -191,6 +195,19 @@ export default function AdminSendPage() {
             <span className="text-muted">{new Date(c.createdAt).toLocaleDateString()}</span>
           </div>
         ))}
+        {adminCampaignsHasMore && (
+          <button
+            onClick={async () => {
+              setLoadingMore(true);
+              await loadMoreAdminCampaigns();
+              setLoadingMore(false);
+            }}
+            disabled={loadingMore}
+            className="w-full px-4 py-3 text-center text-sm font-bold text-accent disabled:opacity-60"
+          >
+            {loadingMore ? 'Loading...' : 'Load more'}
+          </button>
+        )}
       </div>
     </div>
   );

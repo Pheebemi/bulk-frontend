@@ -1,12 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useUserStore } from '@/lib/store';
 import { formatNaira } from '@/lib/money';
 
 export default function DashboardPage() {
-  const { wallet, campaigns } = useUserStore();
-  const totalRecipients = campaigns.reduce((sum, c) => sum + c.recipients, 0);
+  const { wallet, campaigns, campaignsHasMore, campaignsSentTotal, recipientsReachedTotal, loadMoreCampaigns } = useUserStore();
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    await loadMoreCampaigns();
+    setLoadingMore(false);
+  };
 
   return (
     <div>
@@ -15,8 +22,8 @@ export default function DashboardPage() {
 
       <div className="mb-7 grid grid-cols-3 gap-4">
         <StatCard label="Wallet balance" value={formatNaira(wallet)} />
-        <StatCard label="Campaigns sent" value={String(campaigns.length)} />
-        <StatCard label="Recipients reached" value={totalRecipients.toLocaleString()} />
+        <StatCard label="Campaigns sent" value={campaignsSentTotal.toLocaleString()} />
+        <StatCard label="Recipients reached" value={recipientsReachedTotal.toLocaleString()} />
       </div>
 
       <div className="mb-3 flex items-center justify-between">
@@ -46,6 +53,15 @@ export default function DashboardPage() {
             </Link>
           </div>
         ))}
+        {campaignsHasMore && (
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="w-full px-4 py-3 text-center text-sm font-bold text-accent disabled:opacity-60"
+          >
+            {loadingMore ? 'Loading...' : 'Load more'}
+          </button>
+        )}
       </div>
     </div>
   );

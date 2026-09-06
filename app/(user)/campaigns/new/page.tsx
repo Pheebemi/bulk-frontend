@@ -38,7 +38,7 @@ export default function NewCampaignPage() {
   const [sending, setSending] = useState(false);
 
   const recipients = useMemo(() => {
-    if (source === 'group') return groups.find((g) => g.id === groupId)?.contacts.length ?? 0;
+    if (source === 'group') return groups.find((g) => g.id === groupId)?.contactCount ?? 0;
     return manual
       .split(/[\n,]+/)
       .map((s) => s.trim())
@@ -153,7 +153,7 @@ export default function NewCampaignPage() {
               <select value={groupId} onChange={(e) => setGroupId(Number(e.target.value))} className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-sm text-ink">
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {g.name} — {g.contacts.length} contacts
+                    {g.name} — {g.contactCount} contacts
                   </option>
                 ))}
               </select>

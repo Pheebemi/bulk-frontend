@@ -5,16 +5,19 @@ import {
   api,
   ApiCampaign,
   ApiAdminCampaign,
+  ApiContact,
   ApiContactGroup,
   ApiError,
   ApiSenderID,
   ApiAdminUser,
+  ApiUser,
 } from '@/lib/api';
 import type {
   AdminCampaign,
   AdminUser,
   Campaign,
   CampaignChannel,
+  Contact,
   ContactGroup,
   PlatformRate,
   SenderId,
@@ -30,12 +33,11 @@ function errorMessage(e: unknown): string {
 }
 
 function mapGroup(g: ApiContactGroup): ContactGroup {
-  return {
-    id: g.id,
-    name: g.name,
-    contactCount: g.contact_count,
-    contacts: g.contacts.map((c) => ({ id: c.id, firstName: c.first_name, lastName: c.last_name, phone: c.phone_number })),
-  };
+  return { id: g.id, name: g.name, contactCount: g.contact_count };
+}
+
+function mapContact(c: ApiContact): Contact {
+  return { id: c.id, firstName: c.first_name, lastName: c.last_name, phone: c.phone_number };
 }
 
 function mapSenderId(s: ApiSenderID): SenderId {
@@ -103,6 +105,15 @@ interface UserStoreValue {
   groups: ContactGroup[];
   senderIds: SenderId[];
   campaigns: Campaign[];
+  /** True while there's a further page of campaigns beyond what's
+   *  currently loaded — drives whether a "Load more" control shows. */
+  campaignsHasMore: boolean;
+  /** Real, all-time aggregates from the server (GET /api/auth/me/) —
+   *  campaigns.length/reduce only ever covers whatever page is loaded
+   *  now that this list is paginated, so these are the accurate totals
+   *  the dashboard's stat cards actually need. */
+  campaignsSentTotal: number;
+  recipientsReachedTotal: number;
   rate: PlatformRate;
   login: (email: string, password: string) => Promise<Result>;
   signup: (email: string, password: string, fullName: string, phone: string) => Promise<Result>;
@@ -112,9 +123,14 @@ interface UserStoreValue {
   createGroup: (name: string) => Promise<ContactGroup | null>;
   addContact: (groupId: number, contact: { firstName: string; lastName: string; phone: string }) => Promise<void>;
   uploadCsv: (file: File, groupName: string) => Promise<Result>;
+  /** A specific group's contacts, paginated — called when that group is
+   *  expanded (and again for "Load more"), not kept in this store since
+   *  only one group's contacts are ever being browsed at a time. */
+  fetchGroupContacts: (groupId: number, page?: number) => Promise<{ contacts: Contact[]; hasMore: boolean }>;
   refreshSenderIds: () => Promise<void>;
   requestSenderId: (name: string, useCase: string) => Promise<Result>;
   refreshCampaigns: () => Promise<void>;
+  loadMoreCampaigns: () => Promise<void>;
   createCampaign: (args: {
     senderId: string;
     channel: CampaignChannel;
@@ -134,9 +150,13 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [wallet, setWallet] = useState(0);
   const [fullName, setFullName] = useState('');
+  const [campaignsSentTotal, setCampaignsSentTotal] = useState(0);
+  const [recipientsReachedTotal, setRecipientsReachedTotal] = useState(0);
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [senderIds, setSenderIds] = useState<SenderId[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignsPage, setCampaignsPage] = useState(1);
+  const [campaignsHasMore, setCampaignsHasMore] = useState(false);
   const [rate, setRate] = useState<PlatformRate>({ genericRate: 8, dndRate: 10 });
   const [dataLoaded, setDataLoaded] = useState(false);
 
@@ -149,7 +169,11 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
     ]);
     if (groupsRes.status === 'fulfilled') setGroups(groupsRes.value.map(mapGroup));
     if (senderIdsRes.status === 'fulfilled') setSenderIds(senderIdsRes.value.map(mapSenderId));
-    if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.map(mapCampaign));
+    if (campaignsRes.status === 'fulfilled') {
+      setCampaigns(campaignsRes.value.results.map(mapCampaign));
+      setCampaignsPage(1);
+      setCampaignsHasMore(campaignsRes.value.next !== null);
+    }
     if (rateRes.status === 'fulfilled') setRate({ genericRate: parseFloat(rateRes.value.generic_rate), dndRate: parseFloat(rateRes.value.dnd_rate) });
     // Set once loadAll has actually run, success or partial failure alike —
     // Promise.allSettled never rejects, so this always fires.
@@ -168,6 +192,8 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
         setAuthed(true);
         setWallet(parseFloat(user.balance));
         setFullName(user.full_name);
+        setCampaignsSentTotal(user.campaigns_sent);
+        setRecipientsReachedTotal(user.recipients_reached);
         return loadAll();
       })
       .catch(() => {
@@ -177,11 +203,13 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
       .finally(() => setAuthChecked(true));
   }, []);
 
-  const applyAuth = (token: string, refresh: string, user: { balance: string; full_name: string }) => {
+  const applyAuth = (token: string, refresh: string, user: ApiUser) => {
     localStorage.setItem('authToken', token);
     localStorage.setItem('refreshToken', refresh);
     setWallet(parseFloat(user.balance));
     setFullName(user.full_name);
+    setCampaignsSentTotal(user.campaigns_sent);
+    setRecipientsReachedTotal(user.recipients_reached);
     setAuthed(true);
     loadAll();
   };
@@ -213,17 +241,42 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
     setGroups([]);
     setSenderIds([]);
     setCampaigns([]);
+    setCampaignsPage(1);
+    setCampaignsHasMore(false);
+    setCampaignsSentTotal(0);
+    setRecipientsReachedTotal(0);
     setDataLoaded(false);
   };
 
   const refreshWallet = async () => {
     const user = await api.me();
     setWallet(parseFloat(user.balance));
+    setCampaignsSentTotal(user.campaigns_sent);
+    setRecipientsReachedTotal(user.recipients_reached);
   };
 
   const refreshGroups = async () => setGroups((await api.listContactGroups()).map(mapGroup));
   const refreshSenderIds = async () => setSenderIds((await api.listSenderIds()).map(mapSenderId));
-  const refreshCampaigns = async () => setCampaigns((await api.listCampaigns()).map(mapCampaign));
+
+  const refreshCampaigns = async () => {
+    const page = await api.listCampaigns(1);
+    setCampaigns(page.results.map(mapCampaign));
+    setCampaignsPage(1);
+    setCampaignsHasMore(page.next !== null);
+  };
+
+  const loadMoreCampaigns: UserStoreValue['loadMoreCampaigns'] = async () => {
+    const nextPage = campaignsPage + 1;
+    const page = await api.listCampaigns(nextPage);
+    setCampaigns((c) => [...c, ...page.results.map(mapCampaign)]);
+    setCampaignsPage(nextPage);
+    setCampaignsHasMore(page.next !== null);
+  };
+
+  const fetchGroupContacts: UserStoreValue['fetchGroupContacts'] = async (groupId, page = 1) => {
+    const result = await api.listGroupContacts(groupId, page);
+    return { contacts: result.results.map(mapContact), hasMore: result.next !== null };
+  };
 
   const createGroup: UserStoreValue['createGroup'] = async (name) => {
     const group = mapGroup(await api.createContactGroup(name));
@@ -306,12 +359,13 @@ export function UserStoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<UserStoreValue>(
     () => ({
-      authed, authChecked, dataLoaded, wallet, fullName, groups, senderIds, campaigns, rate,
-      login, signup, logout, refreshWallet, refreshGroups, createGroup, addContact, uploadCsv,
-      refreshSenderIds, requestSenderId, refreshCampaigns, createCampaign, fetchCampaign, retryCampaign, verifyPayment,
+      authed, authChecked, dataLoaded, wallet, fullName, groups, senderIds, campaigns, campaignsHasMore,
+      campaignsSentTotal, recipientsReachedTotal, rate,
+      login, signup, logout, refreshWallet, refreshGroups, createGroup, addContact, uploadCsv, fetchGroupContacts,
+      refreshSenderIds, requestSenderId, refreshCampaigns, loadMoreCampaigns, createCampaign, fetchCampaign, retryCampaign, verifyPayment,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authed, authChecked, dataLoaded, wallet, fullName, groups, senderIds, campaigns, rate],
+    [authed, authChecked, dataLoaded, wallet, fullName, groups, senderIds, campaigns, campaignsHasMore, campaignsSentTotal, recipientsReachedTotal, rate],
   );
 
   return <UserStoreContext.Provider value={value}>{children}</UserStoreContext.Provider>;
@@ -336,11 +390,24 @@ interface AdminStoreValue {
   rate: PlatformRate;
   senderIds: SenderId[];
   users: AdminUser[];
+  usersHasMore: boolean;
+  /** Real total from the server — users.length is only how many have
+   *  been loaded so far under the current search, not the true count. */
+  usersTotal: number;
   adminCampaigns: Campaign[];
+  adminCampaignsHasMore: boolean;
+  adminCampaignsTotal: number;
   /** Every campaign on the platform, customer and admin sends alike —
    *  for the campaign monitor, distinct from adminCampaigns above
    *  (admin's own sends only, backing the Send screen's history). */
   allCampaigns: AdminCampaign[];
+  allCampaignsHasMore: boolean;
+  /** Real total for whichever status_group filter is currently active
+   *  (see refreshAllCampaigns) — not the grand total across both. */
+  allCampaignsTotal: number;
+  /** Dashboard overview aggregates — real DB sums/counts, not derived
+   *  from users/adminCampaigns client-side (both paginated now). */
+  stats: { totalUsers: number; totalBalance: number; adminSmsSent: number };
   login: (email: string, password: string) => Promise<Result>;
   logout: () => void;
   refreshSenderIds: () => Promise<void>;
@@ -369,11 +436,19 @@ interface AdminStoreValue {
     }>,
   ) => Promise<Result>;
   deleteSenderId: (id: number) => Promise<Result>;
-  refreshUsers: () => Promise<void>;
+  /** Resets to page 1 under a new search term (empty string clears it) —
+   *  search runs server-side now that the list is paginated, so it has
+   *  to be a fresh fetch, not a filter over whatever page is loaded. */
+  refreshUsers: (search?: string) => Promise<void>;
+  loadMoreUsers: () => Promise<void>;
   adjustUserBalance: (userId: number, amount: number, direction: 'credit' | 'debit', reason: string) => Promise<Result>;
   setRate: (rate: PlatformRate) => Promise<Result>;
   refreshAdminCampaigns: () => Promise<void>;
-  refreshAllCampaigns: () => Promise<void>;
+  loadMoreAdminCampaigns: () => Promise<void>;
+  /** Resets to page 1 under a new status filter — same reasoning as
+   *  refreshUsers: server-side now that the list is paginated. */
+  refreshAllCampaigns: (statusGroup?: 'failed') => Promise<void>;
+  loadMoreAllCampaigns: () => Promise<void>;
   sendCampaign: (args: {
     senderId: string;
     channel: CampaignChannel;
@@ -391,23 +466,58 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [rate, setRateState] = useState<PlatformRate>({ genericRate: 8, dndRate: 10 });
   const [senderIds, setSenderIds] = useState<SenderId[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [usersHasMore, setUsersHasMore] = useState(false);
+  const [usersTotal, setUsersTotal] = useState(0);
   const [adminCampaigns, setAdminCampaigns] = useState<Campaign[]>([]);
+  const [adminCampaignsPage, setAdminCampaignsPage] = useState(1);
+  const [adminCampaignsHasMore, setAdminCampaignsHasMore] = useState(false);
+  const [adminCampaignsTotal, setAdminCampaignsTotal] = useState(0);
   const [allCampaigns, setAllCampaigns] = useState<AdminCampaign[]>([]);
+  const [allCampaignsPage, setAllCampaignsPage] = useState(1);
+  const [allCampaignsStatusGroup, setAllCampaignsStatusGroup] = useState<'failed' | undefined>(undefined);
+  const [allCampaignsHasMore, setAllCampaignsHasMore] = useState(false);
+  const [allCampaignsTotal, setAllCampaignsTotal] = useState(0);
+  const [stats, setStats] = useState({ totalUsers: 0, totalBalance: 0, adminSmsSent: 0 });
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const loadAll = async () => {
-    const [rateRes, sidRes, usersRes, campaignsRes, allCampaignsRes] = await Promise.allSettled([
+    const [rateRes, sidRes, usersRes, campaignsRes, allCampaignsRes, statsRes] = await Promise.allSettled([
       api.adminGetRate(),
       api.adminListSenderIds(),
-      api.adminListUsers(),
-      api.adminListCampaigns(),
-      api.adminListAllCampaigns(),
+      api.adminListUsers(1),
+      api.adminListCampaigns(1),
+      api.adminListAllCampaigns(1),
+      api.adminGetStats(),
     ]);
+    if (statsRes.status === 'fulfilled') {
+      setStats({
+        totalUsers: statsRes.value.total_users,
+        totalBalance: parseFloat(statsRes.value.total_balance),
+        adminSmsSent: statsRes.value.admin_sms_sent,
+      });
+    }
     if (rateRes.status === 'fulfilled') setRateState({ genericRate: parseFloat(rateRes.value.generic_rate), dndRate: parseFloat(rateRes.value.dnd_rate) });
     if (sidRes.status === 'fulfilled') setSenderIds(sidRes.value.map(mapSenderId));
-    if (usersRes.status === 'fulfilled') setUsers(usersRes.value.map(mapAdminUser));
-    if (campaignsRes.status === 'fulfilled') setAdminCampaigns(campaignsRes.value.map(mapCampaign));
-    if (allCampaignsRes.status === 'fulfilled') setAllCampaigns(allCampaignsRes.value.map(mapAdminCampaign));
+    if (usersRes.status === 'fulfilled') {
+      setUsers(usersRes.value.results.map(mapAdminUser));
+      setUsersPage(1);
+      setUsersHasMore(usersRes.value.next !== null);
+      setUsersTotal(usersRes.value.count);
+    }
+    if (campaignsRes.status === 'fulfilled') {
+      setAdminCampaigns(campaignsRes.value.results.map(mapCampaign));
+      setAdminCampaignsPage(1);
+      setAdminCampaignsHasMore(campaignsRes.value.next !== null);
+      setAdminCampaignsTotal(campaignsRes.value.count);
+    }
+    if (allCampaignsRes.status === 'fulfilled') {
+      setAllCampaigns(allCampaignsRes.value.results.map(mapAdminCampaign));
+      setAllCampaignsPage(1);
+      setAllCampaignsHasMore(allCampaignsRes.value.next !== null);
+      setAllCampaignsTotal(allCampaignsRes.value.count);
+    }
     setDataLoaded(true);
   };
 
@@ -449,9 +559,56 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshSenderIds = async () => setSenderIds((await api.adminListSenderIds()).map(mapSenderId));
-  const refreshUsers = async () => setUsers((await api.adminListUsers()).map(mapAdminUser));
-  const refreshAdminCampaigns = async () => setAdminCampaigns((await api.adminListCampaigns()).map(mapCampaign));
-  const refreshAllCampaigns = async () => setAllCampaigns((await api.adminListAllCampaigns()).map(mapAdminCampaign));
+
+  const refreshUsers: AdminStoreValue['refreshUsers'] = async (search = usersSearch) => {
+    const page = await api.adminListUsers(1, search);
+    setUsers(page.results.map(mapAdminUser));
+    setUsersPage(1);
+    setUsersSearch(search);
+    setUsersHasMore(page.next !== null);
+    setUsersTotal(page.count);
+  };
+
+  const loadMoreUsers: AdminStoreValue['loadMoreUsers'] = async () => {
+    const nextPage = usersPage + 1;
+    const page = await api.adminListUsers(nextPage, usersSearch);
+    setUsers((u) => [...u, ...page.results.map(mapAdminUser)]);
+    setUsersPage(nextPage);
+    setUsersHasMore(page.next !== null);
+  };
+
+  const refreshAdminCampaigns = async () => {
+    const page = await api.adminListCampaigns(1);
+    setAdminCampaigns(page.results.map(mapCampaign));
+    setAdminCampaignsPage(1);
+    setAdminCampaignsHasMore(page.next !== null);
+    setAdminCampaignsTotal(page.count);
+  };
+
+  const loadMoreAdminCampaigns: AdminStoreValue['loadMoreAdminCampaigns'] = async () => {
+    const nextPage = adminCampaignsPage + 1;
+    const page = await api.adminListCampaigns(nextPage);
+    setAdminCampaigns((c) => [...c, ...page.results.map(mapCampaign)]);
+    setAdminCampaignsPage(nextPage);
+    setAdminCampaignsHasMore(page.next !== null);
+  };
+
+  const refreshAllCampaigns: AdminStoreValue['refreshAllCampaigns'] = async (statusGroup) => {
+    const page = await api.adminListAllCampaigns(1, statusGroup);
+    setAllCampaigns(page.results.map(mapAdminCampaign));
+    setAllCampaignsPage(1);
+    setAllCampaignsStatusGroup(statusGroup);
+    setAllCampaignsHasMore(page.next !== null);
+    setAllCampaignsTotal(page.count);
+  };
+
+  const loadMoreAllCampaigns: AdminStoreValue['loadMoreAllCampaigns'] = async () => {
+    const nextPage = allCampaignsPage + 1;
+    const page = await api.adminListAllCampaigns(nextPage, allCampaignsStatusGroup);
+    setAllCampaigns((c) => [...c, ...page.results.map(mapAdminCampaign)]);
+    setAllCampaignsPage(nextPage);
+    setAllCampaignsHasMore(page.next !== null);
+  };
 
   const createSenderId: AdminStoreValue['createSenderId'] = async ({ name, visibility, provider, platformStatus, userEmail }) => {
     try {
@@ -538,12 +695,16 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AdminStoreValue>(
     () => ({
-      authed, authChecked, dataLoaded, rate, senderIds, users, adminCampaigns, allCampaigns,
-      login, logout, refreshSenderIds, createSenderId, updateSenderId, deleteSenderId, refreshUsers, adjustUserBalance, setRate,
-      refreshAdminCampaigns, refreshAllCampaigns, sendCampaign,
+      authed, authChecked, dataLoaded, rate, senderIds,
+      users, usersHasMore, usersTotal,
+      adminCampaigns, adminCampaignsHasMore, adminCampaignsTotal,
+      allCampaigns, allCampaignsHasMore, allCampaignsTotal, stats,
+      login, logout, refreshSenderIds, createSenderId, updateSenderId, deleteSenderId, refreshUsers, loadMoreUsers, adjustUserBalance, setRate,
+      refreshAdminCampaigns, loadMoreAdminCampaigns, refreshAllCampaigns, loadMoreAllCampaigns, sendCampaign,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authed, authChecked, dataLoaded, rate, senderIds, users, adminCampaigns, allCampaigns],
+    [authed, authChecked, dataLoaded, rate, senderIds, users, usersHasMore, usersTotal,
+      adminCampaigns, adminCampaignsHasMore, adminCampaignsTotal, allCampaigns, allCampaignsHasMore, allCampaignsTotal, stats],
   );
 
   return <AdminStoreContext.Provider value={value}>{children}</AdminStoreContext.Provider>;

@@ -4,9 +4,10 @@ import { useRef, useState } from 'react';
 import { useUserStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
 import { ButtonSpinner } from '@/components/Loader';
+import type { Contact } from '@/types';
 
 export default function ContactsPage() {
-  const { groups, uploadCsv, createGroup, addContact } = useUserStore();
+  const { groups, uploadCsv, createGroup, addContact, fetchGroupContacts } = useUserStore();
   const toast = useToast();
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [newGroupName, setNewGroupName] = useState('');
@@ -18,7 +19,33 @@ export default function ContactsPage() {
   const [addingContactTo, setAddingContactTo] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const toggle = (id: number) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
+  // Fetched lazily per group, only once it's actually expanded — a
+  // group's contacts are unbounded by design, so nothing loads them
+  // up front any more.
+  const [contactsByGroup, setContactsByGroup] = useState<Record<number, Contact[]>>({});
+  const [pageByGroup, setPageByGroup] = useState<Record<number, number>>({});
+  const [hasMoreByGroup, setHasMoreByGroup] = useState<Record<number, boolean>>({});
+  const [loadingGroupId, setLoadingGroupId] = useState<number | null>(null);
+
+  const loadGroupContacts = async (groupId: number, page: number, append: boolean) => {
+    setLoadingGroupId(groupId);
+    try {
+      const { contacts, hasMore } = await fetchGroupContacts(groupId, page);
+      setContactsByGroup((c) => ({ ...c, [groupId]: append ? [...(c[groupId] ?? []), ...contacts] : contacts }));
+      setPageByGroup((p) => ({ ...p, [groupId]: page }));
+      setHasMoreByGroup((h) => ({ ...h, [groupId]: hasMore }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not load contacts for that group.');
+    } finally {
+      setLoadingGroupId(null);
+    }
+  };
+
+  const toggle = (id: number) => {
+    const willExpand = !expanded[id];
+    setExpanded((e) => ({ ...e, [id]: willExpand }));
+    if (willExpand && !contactsByGroup[id]) loadGroupContacts(id, 1, false);
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,6 +98,9 @@ export default function ContactsPage() {
     try {
       await addContact(groupId, form);
       setContactForms((f) => ({ ...f, [groupId]: { firstName: '', lastName: '', phone: '' } }));
+      // Re-fetch this group's first page rather than guessing where the
+      // new row landed relative to whatever's already loaded.
+      await loadGroupContacts(groupId, 1, false);
       toast.success('Contact added.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not add that contact.');
@@ -118,58 +148,72 @@ export default function ContactsPage() {
         {groups.length === 0 && (
           <div className="text-sm text-muted">No contact groups yet — create one or upload a CSV.</div>
         )}
-        {groups.map((g) => (
-          <div key={g.id} className="overflow-hidden rounded-xl border border-border bg-surface">
-            <button onClick={() => toggle(g.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
-              <div>
-                <div className="text-sm font-bold">{g.name}</div>
-                <div className="text-xs text-muted">{g.contactCount} contacts</div>
-              </div>
-              <span className="text-sm font-semibold text-muted">{expanded[g.id] ? 'Hide' : 'Show'}</span>
-            </button>
-            {expanded[g.id] && (
-              <div className="border-t border-border">
-                {g.contacts.map((c) => (
-                  <div key={c.id} className="flex justify-between px-5 py-2.5 text-sm border-b border-border last:border-b-0">
-                    <span>
-                      {c.firstName} {c.lastName}
-                    </span>
-                    <span className="text-muted">{c.phone}</span>
-                  </div>
-                ))}
-                {g.contacts.length === 0 && <div className="px-5 py-3 text-sm text-muted">No contacts in this group yet.</div>}
-                <div className="flex flex-wrap items-center gap-2 border-t border-border bg-bg/40 px-5 py-3">
-                  <input
-                    value={contactForm(g.id).firstName}
-                    onChange={(e) => setContactForm(g.id, { firstName: e.target.value })}
-                    placeholder="First name"
-                    className="w-28 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
-                  />
-                  <input
-                    value={contactForm(g.id).lastName}
-                    onChange={(e) => setContactForm(g.id, { lastName: e.target.value })}
-                    placeholder="Last name"
-                    className="w-28 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
-                  />
-                  <input
-                    value={contactForm(g.id).phone}
-                    onChange={(e) => setContactForm(g.id, { phone: e.target.value })}
-                    placeholder="Phone number"
-                    className="w-36 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
-                  />
-                  <button
-                    onClick={() => handleAddContact(g.id)}
-                    disabled={addingContactTo === g.id}
-                    className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
-                  >
-                    {addingContactTo === g.id && <ButtonSpinner />}
-                    {addingContactTo === g.id ? 'Adding...' : 'Add contact'}
-                  </button>
+        {groups.map((g) => {
+          const contacts = contactsByGroup[g.id];
+          const isLoading = loadingGroupId === g.id;
+          return (
+            <div key={g.id} className="overflow-hidden rounded-xl border border-border bg-surface">
+              <button onClick={() => toggle(g.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
+                <div>
+                  <div className="text-sm font-bold">{g.name}</div>
+                  <div className="text-xs text-muted">{g.contactCount} contacts</div>
                 </div>
-              </div>
-            )}
-          </div>
-        ))}
+                <span className="text-sm font-semibold text-muted">{expanded[g.id] ? 'Hide' : 'Show'}</span>
+              </button>
+              {expanded[g.id] && (
+                <div className="border-t border-border">
+                  {isLoading && !contacts && <div className="px-5 py-4 text-sm text-muted">Loading contacts...</div>}
+                  {contacts?.map((c) => (
+                    <div key={c.id} className="flex justify-between border-b border-border px-5 py-2.5 text-sm last:border-b-0">
+                      <span>
+                        {c.firstName} {c.lastName}
+                      </span>
+                      <span className="text-muted">{c.phone}</span>
+                    </div>
+                  ))}
+                  {contacts?.length === 0 && <div className="px-5 py-3 text-sm text-muted">No contacts in this group yet.</div>}
+                  {hasMoreByGroup[g.id] && (
+                    <button
+                      onClick={() => loadGroupContacts(g.id, (pageByGroup[g.id] ?? 1) + 1, true)}
+                      disabled={isLoading}
+                      className="w-full border-b border-border px-5 py-2.5 text-center text-xs font-bold text-accent disabled:opacity-60"
+                    >
+                      {isLoading ? 'Loading...' : 'Load more'}
+                    </button>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 border-t border-border bg-bg/40 px-5 py-3">
+                    <input
+                      value={contactForm(g.id).firstName}
+                      onChange={(e) => setContactForm(g.id, { firstName: e.target.value })}
+                      placeholder="First name"
+                      className="w-28 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
+                    />
+                    <input
+                      value={contactForm(g.id).lastName}
+                      onChange={(e) => setContactForm(g.id, { lastName: e.target.value })}
+                      placeholder="Last name"
+                      className="w-28 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
+                    />
+                    <input
+                      value={contactForm(g.id).phone}
+                      onChange={(e) => setContactForm(g.id, { phone: e.target.value })}
+                      placeholder="Phone number"
+                      className="w-36 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-ink"
+                    />
+                    <button
+                      onClick={() => handleAddContact(g.id)}
+                      disabled={addingContactTo === g.id}
+                      className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                    >
+                      {addingContactTo === g.id && <ButtonSpinner />}
+                      {addingContactTo === g.id ? 'Adding...' : 'Add contact'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

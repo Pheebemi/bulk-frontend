@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAdminStore } from '@/lib/store';
 import { formatNaira } from '@/lib/money';
-import type { AdminCampaign, CampaignStatus } from '@/types';
+import type { CampaignStatus } from '@/types';
 
 const STATUS_STYLE: Record<CampaignStatus, string> = {
   PENDING: 'bg-warning/10 text-warning',
@@ -16,17 +16,24 @@ const STATUS_STYLE: Record<CampaignStatus, string> = {
 type Filter = 'all' | 'failed';
 
 export default function AdminCampaignsPage() {
-  const { allCampaigns, refreshAllCampaigns } = useAdminStore();
+  const { allCampaigns, allCampaignsHasMore, allCampaignsTotal, refreshAllCampaigns, loadMoreAllCampaigns } = useAdminStore();
   const [filter, setFilter] = useState<Filter>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    refreshAllCampaigns();
+    // Done server-side now that the list is paginated — filtering a
+    // fetched page client-side would silently miss every match not on
+    // whichever page happened to be loaded.
+    refreshAllCampaigns(filter === 'failed' ? 'failed' : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filter]);
 
-  const failedCount = allCampaigns.filter((c) => c.status === 'FAILED' || c.status === 'PARTIAL').length;
-  const rows = filter === 'failed' ? allCampaigns.filter((c) => c.status === 'FAILED' || c.status === 'PARTIAL') : allCampaigns;
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    await loadMoreAllCampaigns();
+    setLoadingMore(false);
+  };
 
   return (
     <div>
@@ -42,15 +49,19 @@ export default function AdminCampaignsPage() {
           onClick={() => setFilter('all')}
           className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${filter === 'all' ? 'bg-accentSoft text-accent' : ''}`}
         >
-          All ({allCampaigns.length})
+          All
         </button>
         <button
           onClick={() => setFilter('failed')}
           className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${filter === 'failed' ? 'bg-accentSoft text-accent' : ''}`}
         >
-          Failed / partial ({failedCount})
+          Failed / partial
         </button>
       </div>
+
+      <p className="mb-3 text-xs text-muted">
+        Showing {allCampaigns.length} of {allCampaignsTotal.toLocaleString()}
+      </p>
 
       <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="grid grid-cols-7 border-b border-border px-4 py-3 text-xs font-bold text-muted">
@@ -62,12 +73,12 @@ export default function AdminCampaignsPage() {
           <span>STATUS</span>
           <span>DATE</span>
         </div>
-        {rows.length === 0 && (
+        {allCampaigns.length === 0 && (
           <div className="px-4 py-5 text-sm text-muted">
             {filter === 'failed' ? 'No failed or partial campaigns.' : 'No campaigns sent yet.'}
           </div>
         )}
-        {rows.map((c) => {
+        {allCampaigns.map((c) => {
           const isProblem = (c.status === 'FAILED' || c.status === 'PARTIAL') && !!c.providerError;
           const isOpen = expandedId === c.id;
           return (
@@ -95,6 +106,15 @@ export default function AdminCampaignsPage() {
             </div>
           );
         })}
+        {allCampaignsHasMore && (
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="w-full px-4 py-3 text-center text-sm font-bold text-accent disabled:opacity-60"
+          >
+            {loadingMore ? 'Loading...' : 'Load more'}
+          </button>
+        )}
       </div>
     </div>
   );

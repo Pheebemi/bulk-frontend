@@ -5,18 +5,16 @@ import { useAdminStore } from '@/lib/store';
 import { formatNaira } from '@/lib/money';
 
 export default function AdminDashboardPage() {
-  const { senderIds, users, adminCampaigns } = useAdminStore();
+  const { senderIds, stats } = useAdminStore();
   const pending = senderIds.filter((s) => s.status === 'pending');
-  const totalRevenue = users.reduce((sum, u) => sum + u.balance, 0);
-  const totalSms = adminCampaigns.reduce((sum, c) => sum + c.recipients, 0);
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Platform overview</h1>
       <div className="mb-7 grid grid-cols-3 gap-4">
-        <Stat label="Total users" value={String(users.length)} />
-        <Stat label="Admin SMS sent" value={totalSms.toLocaleString()} />
-        <Stat label="Total user balances" value={formatNaira(totalRevenue)} />
+        <Stat label="Total users" value={stats.totalUsers.toLocaleString()} />
+        <Stat label="Admin SMS sent" value={stats.adminSmsSent.toLocaleString()} />
+        <Stat label="Total user balances" value={formatNaira(stats.totalBalance)} />
       </div>
 
       <div className="mb-3 flex items-center justify-between">
