@@ -72,7 +72,7 @@ export default function NewCampaignPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">New campaign</h1>
-      <div className="grid max-w-4xl grid-cols-[1.4fr_1fr] gap-6">
+      <div className="grid max-w-4xl grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-7">
           <div>
             <div className="mb-2 text-xs font-bold text-muted">SENDER ID</div>
@@ -114,7 +114,7 @@ export default function NewCampaignPage() {
 
           <div>
             <div className="mb-2 text-xs font-bold text-muted">CHANNEL</div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button onClick={() => setChannel('dnd')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${channel === 'dnd' ? 'bg-accentSoft text-accent' : ''}`}>
                 DND (Transactional)
               </button>
@@ -141,7 +141,7 @@ export default function NewCampaignPage() {
 
           <div>
             <div className="mb-2 text-xs font-bold text-muted">RECIPIENTS</div>
-            <div className="mb-3 flex gap-2">
+            <div className="mb-3 flex flex-wrap gap-2">
               <button onClick={() => setSource('group')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${source === 'group' ? 'bg-accentSoft text-accent' : ''}`}>
                 From a group
               </button>

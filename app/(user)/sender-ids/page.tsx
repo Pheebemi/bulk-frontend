@@ -45,7 +45,7 @@ export default function SenderIdsPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Sender IDs</h1>
-      <div className="grid max-w-3xl grid-cols-2 gap-6">
+      <div className="grid max-w-3xl grid-cols-1 gap-6 md:grid-cols-2">
         <div className="h-fit overflow-hidden rounded-xl border border-border bg-surface">
           <div className="grid grid-cols-2 border-b border-border px-4 py-3 text-xs font-bold text-muted">
             <span>NAME</span>

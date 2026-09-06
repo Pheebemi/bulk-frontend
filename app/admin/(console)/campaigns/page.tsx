@@ -63,7 +63,8 @@ export default function AdminCampaignsPage() {
         Showing {allCampaigns.length} of {allCampaignsTotal.toLocaleString()}
       </p>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <div className="min-w-[820px]">
         <div className="grid grid-cols-7 border-b border-border px-4 py-3 text-xs font-bold text-muted">
           <span>USER</span>
           <span>SENDER ID</span>
@@ -115,6 +116,7 @@ export default function AdminCampaignsPage() {
             {loadingMore ? 'Loading...' : 'Load more'}
           </button>
         )}
+        </div>
       </div>
     </div>
   );

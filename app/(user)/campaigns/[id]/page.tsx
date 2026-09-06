@@ -70,14 +70,14 @@ export default function CampaignReportPage() {
       </Link>
       <h1 className="mb-6 mt-3 text-2xl font-extrabold text-ink">{campaign.name}</h1>
 
-      <div className="mb-7 grid grid-cols-4 gap-4">
+      <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MiniStat label="RECIPIENTS" value={String(campaign.recipients)} />
         <MiniStat label="DELIVERED" value={String(campaign.delivered)} valueClass="text-success" />
         <MiniStat label="FAILED" value={String(campaign.failed)} valueClass="text-danger" />
         <MiniStat label="COST" value={formatNaira(campaign.cost)} />
       </div>
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <span className={`text-sm font-bold ${statusColor}`}>
           Status: {campaign.status}
           {(campaign.status === 'PENDING' || campaign.status === 'PROCESSING') && ' — refreshing automatically...'}

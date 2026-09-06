@@ -69,7 +69,7 @@ export default function WalletPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Fund wallet</h1>
-      <div className="grid max-w-3xl grid-cols-[1.2fr_1fr] gap-6">
+      <div className="grid max-w-3xl grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="rounded-xl border border-border bg-surface p-7">
           <div className="mb-2 text-xs font-bold text-muted">AMOUNT (NGN)</div>
           <input
@@ -79,7 +79,7 @@ export default function WalletPage() {
             onChange={(e) => setAmount(Number(e.target.value))}
             className="mb-4 w-full rounded-lg border border-border bg-bg px-3.5 py-3.5 text-xl font-bold text-ink"
           />
-          <div className="mb-6 flex gap-2">
+          <div className="mb-6 flex flex-wrap gap-2">
             {PRESETS.map((p) => (
               <button
                 key={p}

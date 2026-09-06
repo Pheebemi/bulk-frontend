@@ -55,7 +55,7 @@ export default function AdminWalletsPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">User wallets</h1>
-      <div className="grid grid-cols-[1fr_1.3fr] gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.3fr]">
         <div>
           <input
             value={query}

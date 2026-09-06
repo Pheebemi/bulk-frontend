@@ -33,8 +33,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-sidebar">
-      <div className="w-[380px] rounded-2xl bg-surface p-9">
+    <div className="flex min-h-screen items-center justify-center bg-sidebar px-4">
+      <div className="w-full max-w-[380px] rounded-2xl bg-surface p-6 sm:p-9">
         <div className="mb-7 flex items-center gap-2.5">
           <LogoMark />
           <span className="font-display text-xl font-extrabold text-ink">Reachly</span>

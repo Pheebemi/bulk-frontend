@@ -11,7 +11,7 @@ export default function AdminDashboardPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Platform overview</h1>
-      <div className="mb-7 grid grid-cols-3 gap-4">
+      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Total users" value={stats.totalUsers.toLocaleString()} />
         <Stat label="Admin SMS sent" value={stats.adminSmsSent.toLocaleString()} />
         <Stat label="Total user balances" value={formatNaira(stats.totalBalance)} />
@@ -26,7 +26,7 @@ export default function AdminDashboardPage() {
       <div className="overflow-hidden rounded-xl border border-border bg-surface">
         {pending.length === 0 && <div className="px-4 py-5 text-sm text-muted">Nothing pending.</div>}
         {pending.map((p) => (
-          <div key={p.id} className="flex justify-between border-b border-border px-4 py-3.5 text-sm last:border-b-0">
+          <div key={p.id} className="flex flex-wrap justify-between gap-1 border-b border-border px-4 py-3.5 text-sm last:border-b-0">
             <span>
               <b>{p.name}</b> requested by {p.userEmail ?? 'unknown'}
             </span>

@@ -111,14 +111,14 @@ export default function ContactsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-extrabold text-ink">Contact groups</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
             placeholder="Group name"
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink"
+            className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink sm:flex-none"
           />
           <button
             onClick={handleCreateGroup}

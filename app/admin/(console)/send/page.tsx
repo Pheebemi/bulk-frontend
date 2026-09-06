@@ -81,7 +81,7 @@ export default function AdminSendPage() {
 
       <div className="mb-8 max-w-3xl rounded-xl border border-border bg-surface p-6">
         <h3 className="mb-3 text-sm font-bold text-ink">Platform selling rate (charged to users)</h3>
-        <div className="flex items-end gap-4">
+        <div className="flex flex-wrap items-end gap-4">
           <div>
             <div className="mb-1.5 text-xs font-bold text-muted">GENERIC (₦/segment)</div>
             <input value={genericRate} onChange={(e) => setGenericRate(e.target.value)} className="w-32 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" />
@@ -102,7 +102,7 @@ export default function AdminSendPage() {
         </div>
       )}
 
-      <div className="grid max-w-4xl grid-cols-[1.4fr_1fr] gap-6">
+      <div className="grid max-w-4xl grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-7">
           <div>
             <div className="mb-2 text-xs font-bold text-muted">SENDER ID</div>
@@ -116,7 +116,7 @@ export default function AdminSendPage() {
           </div>
           <div>
             <div className="mb-2 text-xs font-bold text-muted">CHANNEL</div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button onClick={() => setChannel('generic')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${channel === 'generic' ? 'bg-accentSoft text-accent' : ''}`}>
                 Generic
               </button>
@@ -141,7 +141,7 @@ export default function AdminSendPage() {
           </div>
           <div>
             <div className="mb-2 text-xs font-bold text-muted">TARGET</div>
-            <div className="mb-3 flex gap-2">
+            <div className="mb-3 flex flex-wrap gap-2">
               <button onClick={() => setTarget('all')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'all' ? 'bg-accentSoft text-accent' : ''}`}>
                 All users ({usersTotal.toLocaleString()})
               </button>
@@ -179,35 +179,37 @@ export default function AdminSendPage() {
       </div>
 
       <h3 className="mb-3 mt-8 text-base font-bold text-ink">Admin campaign history</h3>
-      <div className="max-w-4xl overflow-hidden rounded-xl border border-border bg-surface">
-        <div className="grid grid-cols-4 border-b border-border px-4 py-3 text-xs font-bold text-muted">
-          <span>CAMPAIGN</span>
-          <span>RECIPIENTS</span>
-          <span>COST</span>
-          <span>DATE</span>
-        </div>
-        {adminCampaigns.length === 0 && <div className="px-4 py-5 text-sm text-muted">No admin campaigns sent yet.</div>}
-        {adminCampaigns.map((c) => (
-          <div key={c.id} className="grid grid-cols-4 border-b border-border px-4 py-3.5 text-sm last:border-b-0">
-            <span className="font-semibold">{c.name}</span>
-            <span className="text-muted">{c.recipients.toLocaleString()}</span>
-            <span className="text-muted">{formatNaira(c.termiiCost)}</span>
-            <span className="text-muted">{new Date(c.createdAt).toLocaleDateString()}</span>
+      <div className="max-w-4xl overflow-x-auto rounded-xl border border-border bg-surface">
+        <div className="min-w-[560px]">
+          <div className="grid grid-cols-4 border-b border-border px-4 py-3 text-xs font-bold text-muted">
+            <span>CAMPAIGN</span>
+            <span>RECIPIENTS</span>
+            <span>COST</span>
+            <span>DATE</span>
           </div>
-        ))}
-        {adminCampaignsHasMore && (
-          <button
-            onClick={async () => {
-              setLoadingMore(true);
-              await loadMoreAdminCampaigns();
-              setLoadingMore(false);
-            }}
-            disabled={loadingMore}
-            className="w-full px-4 py-3 text-center text-sm font-bold text-accent disabled:opacity-60"
-          >
-            {loadingMore ? 'Loading...' : 'Load more'}
-          </button>
-        )}
+          {adminCampaigns.length === 0 && <div className="px-4 py-5 text-sm text-muted">No admin campaigns sent yet.</div>}
+          {adminCampaigns.map((c) => (
+            <div key={c.id} className="grid grid-cols-4 border-b border-border px-4 py-3.5 text-sm last:border-b-0">
+              <span className="font-semibold">{c.name}</span>
+              <span className="text-muted">{c.recipients.toLocaleString()}</span>
+              <span className="text-muted">{formatNaira(c.termiiCost)}</span>
+              <span className="text-muted">{new Date(c.createdAt).toLocaleDateString()}</span>
+            </div>
+          ))}
+          {adminCampaignsHasMore && (
+            <button
+              onClick={async () => {
+                setLoadingMore(true);
+                await loadMoreAdminCampaigns();
+                setLoadingMore(false);
+              }}
+              disabled={loadingMore}
+              className="w-full px-4 py-3 text-center text-sm font-bold text-accent disabled:opacity-60"
+            >
+              {loadingMore ? 'Loading...' : 'Load more'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

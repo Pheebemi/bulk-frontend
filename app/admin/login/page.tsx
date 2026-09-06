@@ -26,8 +26,8 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-sidebar">
-      <div className="w-[380px] rounded-2xl bg-surface p-9">
+    <div className="flex min-h-screen items-center justify-center bg-sidebar px-4">
+      <div className="w-full max-w-[380px] rounded-2xl bg-surface p-6 sm:p-9">
         <div className="mb-7 flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
