@@ -209,6 +209,23 @@ export const api = {
     return request<ApiContactGroup>('/api/contact-groups/upload-csv/', { method: 'POST', body: form });
   },
 
+  // Admin — its own, separate contact groups (never a customer's), so an
+  // admin platform send can target a group the same way a customer's own
+  // campaign screen can. Same shapes as the customer endpoints above.
+  adminListContactGroups: () => request<ApiContactGroup[]>('/api/admin/contact-groups/'),
+  adminCreateContactGroup: (name: string) =>
+    request<ApiContactGroup>('/api/admin/contact-groups/', { method: 'POST', body: JSON.stringify({ name }) }),
+  adminAddContact: (groupId: number, contact: { first_name: string; last_name: string; phone_number: string }) =>
+    request<ApiContact>(`/api/admin/contact-groups/${groupId}/contacts/`, { method: 'POST', body: JSON.stringify(contact) }),
+  adminListGroupContacts: (groupId: number, page = 1) =>
+    request<ApiPage<ApiContact>>(`/api/admin/contact-groups/${groupId}/contacts/?page=${page}`),
+  adminUploadContactsCsv: (file: File, groupName: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('group_name', groupName);
+    return request<ApiContactGroup>('/api/admin/contact-groups/upload-csv/', { method: 'POST', body: form });
+  },
+
   listSenderIds: () => request<ApiSenderID[]>('/api/sender-ids/'),
   requestSenderId: (name: string, use_case: string) =>
     request<ApiSenderID>('/api/sender-ids/', { method: 'POST', body: JSON.stringify({ name, use_case }) }),
@@ -277,6 +294,7 @@ export const api = {
     sender_id: string;
     message: string;
     channel: 'generic' | 'dnd';
+    group_id?: number;
     manual_numbers?: string[];
     recipient_count?: number;
   }) => request<ApiCampaign>('/api/admin/campaigns/', { method: 'POST', body: JSON.stringify(payload) }),

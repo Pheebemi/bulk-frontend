@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAdminStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
 import { ButtonSpinner } from '@/components/Loader';
@@ -8,14 +9,15 @@ import { formatNaira, countSegments } from '@/lib/money';
 import type { CampaignChannel } from '@/types';
 
 export default function AdminSendPage() {
-  const { rate, setRate, senderIds, usersTotal, adminCampaigns, adminCampaignsHasMore, loadMoreAdminCampaigns, sendCampaign, refreshUsers } = useAdminStore();
+  const { rate, setRate, senderIds, groups, usersTotal, adminCampaigns, adminCampaignsHasMore, loadMoreAdminCampaigns, sendCampaign, refreshUsers } = useAdminStore();
   const [loadingMore, setLoadingMore] = useState(false);
   const toast = useToast();
   const activeSenderIds = senderIds.filter((s) => s.status === 'active');
   const [senderId, setSenderId] = useState('');
   const [channel, setChannel] = useState<CampaignChannel>('generic');
   const [message, setMessage] = useState('');
-  const [target, setTarget] = useState<'all' | 'custom'>('all');
+  const [target, setTarget] = useState<'all' | 'group' | 'custom'>('all');
+  const [groupId, setGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [manual, setManual] = useState('');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -33,11 +35,18 @@ export default function AdminSendPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSenderIds.length]);
 
+  useEffect(() => {
+    if (!groupId && groups.length > 0) setGroupId(groups[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups.length]);
+
   const manualNumbers = manual.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
   // usersTotal, not users.length — the user list is paginated now, so
   // users.length is only how many are loaded, not the real "send to
-  // everyone" recipient count.
-  const recipients = target === 'all' ? usersTotal : manualNumbers.length;
+  // everyone" recipient count. A group's count is always accurate —
+  // contactCount comes straight from the server, not a fetched page.
+  const recipients =
+    target === 'all' ? usersTotal : target === 'group' ? groups.find((g) => g.id === groupId)?.contactCount ?? 0 : manualNumbers.length;
 
   const segments = countSegments(message);
   const estimatedCost = recipients * segments * (channel === 'dnd' ? rate.dndRate : rate.genericRate);
@@ -50,6 +59,7 @@ export default function AdminSendPage() {
       senderId,
       channel,
       message,
+      groupId: target === 'group' ? groupId : undefined,
       manualNumbers: target === 'custom' ? manualNumbers : undefined,
       recipientCount: target === 'all' ? recipients : undefined,
     });
@@ -145,10 +155,35 @@ export default function AdminSendPage() {
               <button onClick={() => setTarget('all')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'all' ? 'bg-accentSoft text-accent' : ''}`}>
                 All users ({usersTotal.toLocaleString()})
               </button>
+              <button onClick={() => setTarget('group')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'group' ? 'bg-accentSoft text-accent' : ''}`}>
+                From a group
+              </button>
               <button onClick={() => setTarget('custom')} className={`rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${target === 'custom' ? 'bg-accentSoft text-accent' : ''}`}>
                 Custom list
               </button>
             </div>
+            {target === 'group' &&
+              (groups.length > 0 ? (
+                <select
+                  value={groupId}
+                  onChange={(e) => setGroupId(Number(e.target.value))}
+                  className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-sm text-ink"
+                >
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name} — {g.contactCount} contacts
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-muted">
+                  No contact groups yet —{' '}
+                  <Link href="/admin/contacts" className="font-semibold text-accent">
+                    create one
+                  </Link>
+                  .
+                </p>
+              ))}
             {target === 'custom' && (
               <textarea
                 value={manual}

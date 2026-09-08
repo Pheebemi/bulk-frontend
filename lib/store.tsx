@@ -403,6 +403,15 @@ interface AdminStoreValue {
   dataLoaded: boolean;
   rate: PlatformRate;
   senderIds: SenderId[];
+  /** The admin console's own contact groups — entirely separate from any
+   *  customer's, so a platform send can target a group the same way a
+   *  customer's own campaign screen can. */
+  groups: ContactGroup[];
+  refreshGroups: () => Promise<void>;
+  createGroup: (name: string) => Promise<ContactGroup | null>;
+  addContact: (groupId: number, contact: { firstName: string; lastName: string; phone: string }) => Promise<void>;
+  uploadCsv: (file: File, groupName: string) => Promise<Result>;
+  fetchGroupContacts: (groupId: number, page?: number) => Promise<{ contacts: Contact[]; hasMore: boolean }>;
   users: AdminUser[];
   usersHasMore: boolean;
   /** Real total from the server — users.length is only how many have
@@ -478,6 +487,7 @@ interface AdminStoreValue {
     senderId: string;
     channel: CampaignChannel;
     message: string;
+    groupId?: number;
     manualNumbers?: string[];
     recipientCount?: number;
   }) => Promise<Result>;
@@ -490,6 +500,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [rate, setRateState] = useState<PlatformRate>({ genericRate: 8, dndRate: 10 });
   const [senderIds, setSenderIds] = useState<SenderId[]>([]);
+  const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersPage, setUsersPage] = useState(1);
   const [usersSearch, setUsersSearch] = useState('');
@@ -513,14 +524,16 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const loadAll = async () => {
-    const [rateRes, sidRes, usersRes, campaignsRes, allCampaignsRes, statsRes] = await Promise.allSettled([
+    const [rateRes, sidRes, groupsRes, usersRes, campaignsRes, allCampaignsRes, statsRes] = await Promise.allSettled([
       api.adminGetRate(),
       api.adminListSenderIds(),
+      api.adminListContactGroups(),
       api.adminListUsers(1),
       api.adminListCampaigns(1),
       api.adminListAllCampaigns(1),
       api.adminGetStats(),
     ]);
+    if (groupsRes.status === 'fulfilled') setGroups(groupsRes.value.map(mapGroup));
     if (statsRes.status === 'fulfilled') {
       setStats({
         totalUsers: statsRes.value.total_users,
@@ -589,6 +602,34 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshSenderIds = async () => setSenderIds((await api.adminListSenderIds()).map(mapSenderId));
+
+  const refreshGroups = async () => setGroups((await api.adminListContactGroups()).map(mapGroup));
+
+  const createGroup: AdminStoreValue['createGroup'] = async (name) => {
+    const group = mapGroup(await api.adminCreateContactGroup(name));
+    setGroups((g) => [...g, group]);
+    return group;
+  };
+
+  const addContact: AdminStoreValue['addContact'] = async (groupId, contact) => {
+    await api.adminAddContact(groupId, { first_name: contact.firstName, last_name: contact.lastName, phone_number: contact.phone });
+    await refreshGroups();
+  };
+
+  const uploadCsv: AdminStoreValue['uploadCsv'] = async (file, groupName) => {
+    try {
+      const group = mapGroup(await api.adminUploadContactsCsv(file, groupName));
+      setGroups((g) => [...g, group]);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: errorMessage(e) };
+    }
+  };
+
+  const fetchGroupContacts: AdminStoreValue['fetchGroupContacts'] = async (groupId, page = 1) => {
+    const result = await api.adminListGroupContacts(groupId, page);
+    return { contacts: result.results.map(mapContact), hasMore: result.next !== null };
+  };
 
   const refreshUsers: AdminStoreValue['refreshUsers'] = async (search = usersSearch) => {
     const page = await api.adminListUsers(1, search);
@@ -733,12 +774,13 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const sendCampaign: AdminStoreValue['sendCampaign'] = async ({ senderId, channel, message, manualNumbers, recipientCount }) => {
+  const sendCampaign: AdminStoreValue['sendCampaign'] = async ({ senderId, channel, message, groupId, manualNumbers, recipientCount }) => {
     try {
       const campaign = await api.adminCreateCampaign({
         sender_id: senderId,
         message,
         channel,
+        group_id: groupId,
         manual_numbers: manualNumbers,
         recipient_count: recipientCount,
       });
@@ -751,17 +793,19 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AdminStoreValue>(
     () => ({
-      authed, authChecked, dataLoaded, rate, senderIds,
+      authed, authChecked, dataLoaded, rate, senderIds, groups,
       users, usersHasMore, usersTotal,
       adminCampaigns, adminCampaignsHasMore, adminCampaignsTotal,
       allCampaigns, allCampaignsHasMore, allCampaignsTotal, stats,
       analytics, userSpend, userSpendHasMore, userSpendTotal,
-      login, logout, refreshSenderIds, createSenderId, updateSenderId, deleteSenderId, refreshUsers, loadMoreUsers, adjustUserBalance, setRate,
+      login, logout, refreshSenderIds, createSenderId, updateSenderId, deleteSenderId,
+      refreshGroups, createGroup, addContact, uploadCsv, fetchGroupContacts,
+      refreshUsers, loadMoreUsers, adjustUserBalance, setRate,
       refreshAdminCampaigns, loadMoreAdminCampaigns, refreshAllCampaigns, loadMoreAllCampaigns,
       refreshAnalytics, refreshUserSpend, loadMoreUserSpend, sendCampaign,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authed, authChecked, dataLoaded, rate, senderIds, users, usersHasMore, usersTotal,
+    [authed, authChecked, dataLoaded, rate, senderIds, groups, users, usersHasMore, usersTotal,
       adminCampaigns, adminCampaignsHasMore, adminCampaignsTotal, allCampaigns, allCampaignsHasMore, allCampaignsTotal, stats,
       analytics, userSpend, userSpendHasMore, userSpendTotal],
   );

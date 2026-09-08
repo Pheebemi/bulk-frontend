@@ -95,9 +95,14 @@ export function AppShell({
   );
 
   return (
-    <div className="flex min-h-screen w-full bg-bg text-ink">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-[232px] flex-none flex-col gap-1 bg-sidebar px-4 py-6 md:flex">{sidebarContent}</aside>
+    <div className="flex h-screen w-full overflow-hidden bg-bg text-ink">
+      {/* Desktop sidebar — fixed to the viewport height regardless of how
+          long the current page's content is, so Toggle theme/Log out
+          never end up below the fold; its own nav list scrolls
+          independently if it's ever taller than the viewport. */}
+      <aside className="hidden h-full w-[232px] flex-none flex-col gap-1 overflow-y-auto bg-sidebar px-4 py-6 md:flex">
+        {sidebarContent}
+      </aside>
 
       {/* Mobile off-canvas sidebar */}
       {mobileOpen && (
@@ -109,7 +114,7 @@ export function AppShell({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 sm:justify-end sm:gap-4 sm:px-8 sm:py-4">
           <button onClick={() => setMobileOpen(true)} className="rounded-lg p-1.5 hover:bg-surface2 sm:mr-auto md:hidden" aria-label="Open menu">
             <MenuIcon color="currentColor" />
